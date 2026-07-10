@@ -418,7 +418,7 @@ useEffect(() => {
                     <span className="text-[10px] text-[#F3E5AB]">{m.label}</span>
                   </div>
                 </div>
-              ))}
+              ))
             </div>
 
             <div className="bg-[#0a0514] rounded-xl p-4 mb-6 border border-[#3b1d6b] text-center">
