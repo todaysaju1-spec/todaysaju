@@ -385,7 +385,7 @@ useEffect(() => {
                     <div className="font-bold text-white group-hover:text-[#D4AF37] text-sm md:text-base">{item.title}</div>
                     <div className="text-[10px] md:text-xs text-[#a48cd1] mt-1">{item.desc}</div>
                   </button>
-                }))}
+                ))}
               </div>
             </div>
           </div>
