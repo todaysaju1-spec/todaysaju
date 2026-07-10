@@ -389,9 +389,9 @@ useEffect(() => {
               </div>
             </div>
           </div>
-            </div>
-          
-        
+          </div>
+        )}
+
       </div>
 
       {/* 💳 [모달] 포인트 충전소 (무통장 입금 MVP) */}
@@ -418,9 +418,8 @@ useEffect(() => {
                     <span className="text-[10px] text-[#F3E5AB]">{m.label}</span>
                   </div>
                 </div>
-              ))
+              ))}
             </div>
-      )}  
 
             <div className="bg-[#0a0514] rounded-xl p-4 mb-6 border border-[#3b1d6b] text-center">
               <p className="text-[11px] text-[#a48cd1] mb-1">무통장 입금 계좌</p>
