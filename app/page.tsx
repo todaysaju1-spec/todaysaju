@@ -46,7 +46,13 @@ const [partnerInfo, setPartnerInfo] = useState({
   calendarType: "양력",
   isTimeKnown: false
 });
-const [showPremiumGate, setShowPremiumGate] = useState(false);
+// 어떤 메뉴를 얼마에 결제할지 담아두는 '장바구니' 역할입니다.
+const [pendingPayment, setPendingPayment] = useState<any>(null); 
+const [showGuestModal, setShowGuestModal] = useState(false);
+// 🗂️ 보관함 전용 상태 모음
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyList, setHistoryList] = useState<any[]>([]);
+  const [selectedHistory, setSelectedHistory] = useState<any>(null); // 리스트에서 클릭한 상세 내역
 // 💡 [추가] 브라우저에 화면이 뜬(마운트 된) 직후에만 랜덤 값을 계산합니다.
 useEffect(() => {
   const generatedStars = [...Array(35)].map(() => ({
@@ -100,6 +106,46 @@ const handleLogout = async () => {
   setUser(null);
   alert("로그아웃 되었습니다.");
 };
+
+// 💾 [추가] 사주 결과를 DB에 몰래 저장하는 마법의 함수
+const saveSajuHistory = async (type: string, title: string, content: string) => {
+  if (!user) return; // 로그인 안 했으면 패스
+  const { error } = await supabase.from('saju_history').insert({
+    user_id: user.id,
+    type: type,
+    title: title,
+    content: content
+  });
+  if (error) console.error("사주 내역 저장 실패:", error);
+};
+
+// 🗂️ [수정] DB에서 내 사주 기록을 가져오는 함수 (안전성 강화 버전)
+const fetchMyHistory = async () => {
+  if (!user) {
+    setShowGuestModal(true);
+    return;
+  }
+  
+  try {
+    // 🌟 핵심: 내 아이디(user.id)랑 똑같은 것만 가져오라고 명시적으로 명령(.eq) 추가!
+    const { data, error } = await supabase
+      .from('saju_history')
+      .select('*')
+      .eq('user_id', user.id) 
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error("보관함 불러오기 에러 상세:", error.message || error);
+      alert("데이터베이스 연결 중입니다. 페이지를 새로고침(F5) 후 다시 시도해주세요!");
+    } else {
+      setHistoryList(data || []);
+      setShowHistoryModal(true); // 데이터 가져오면 모달창 열기!
+    }
+  } catch (err) {
+    console.error("보관함 실행 중 예외 발생:", err);
+  }
+};
+
   // ── 구글 간편 로그인 로직 ──
   const handleGoogleLogin = async () => {
     // 실제 Supabase OAuth 로그인 연동 구문
@@ -202,6 +248,7 @@ partner_is_time_known: showPartner ? partnerInfo.isTimeKnown : false
       setSajuResultText(data.result_text); 
       setStep("result");
       setHasUsedDailyFree(true);
+      saveSajuHistory("free", "오늘의 무료 사주", data.result_text);
     } else {
       alert("운세 서버 통신이 지연되고 있습니다. 다시 시도해주세요.");
       setStep("input");
@@ -238,20 +285,26 @@ const handleFollowUp = async (question: string) => {
     if (response.ok) {
       const data = await response.json();
       const rawText = data.result_text;
-      
+      let cleanText = rawText; // DB 저장용 텍스트
+
       // 💡 핵심: AI가 던져준 '||' 기호를 기준으로 답변과 질문을 가위질합니다!
       if (rawText.includes("||")) {
         const parts = rawText.split("||");
-        setFollowUpResult(parts[0].trim()); // 첫 번째 조각(답변)은 결과창에 출력
-        
+        cleanText = parts[0].trim(); // 기호 앞부분(순수 답변)만 빼냅니다.
+        setFollowUpResult(cleanText); // 결과창에 출력
+
         // 나머지 조각들(추천 질문)은 칩 버튼으로 싹 갈아끼우기
         const newQuestions = parts.slice(1).map((q: string) => q.trim()).filter((q: string) => q !== "");
         if (newQuestions.length > 0) {
-          setSuggestedQuestions(newQuestions); 
+          setSuggestedQuestions(newQuestions);
         }
       } else {
-        setFollowUpResult(rawText); // '||'가 없으면 통째로 출력
+        setFollowUpResult(rawText);
       }
+      
+      // 👇 꼬리질문 내용도 DB에 저장!
+      saveSajuHistory("followup", question, cleanText);
+      
     } else {
       setFollowUpResult("서버 통신이 지연되고 있습니다. 다시 시도해주세요.");
     }
@@ -269,8 +322,7 @@ const handleFollowUp = async (question: string) => {
     const { data: { session } } = await supabase.auth.getSession();
 
     if (!session) {
-      alert("🎁 회원가입하고 더 정밀한 상세 풀이를 확인하세요!\n1초 만에 가입하면 1,000 포인트를 드립니다.");
-      handleGoogleLogin();
+      setShowGuestModal(true); // 👈 alert와 강제 로그인 대신 예쁜 모달창 띄우기!
       return;
     }
 
@@ -320,6 +372,7 @@ const handleFollowUp = async (question: string) => {
         setSajuResultText(data.result_text); // 메인 결과창 텍스트를 전문 리포트로 교체
         setStep("result");
         window.scrollTo({ top: 0, behavior: 'smooth' }); // 화면 맨 위로 부드럽게 스크롤
+        saveSajuHistory("menu", title, data.result_text);
       } else {
         alert("서버 통신이 지연되고 있습니다. 다시 시도해주세요.");
         setStep("result");
@@ -367,6 +420,24 @@ const handlePremiumClick = async () => {
     });
     const llmFriendlyData = sajuResult.toCompact();
 
+    let partnerLlmFriendlyData = null;
+    if (showPartner && partnerInfo.birth) {
+      const pYearPrefix = parseInt(partnerInfo.birth.slice(0, 2)) > 30 ? 1900 : 2000;
+      const pBirthYear = pYearPrefix + parseInt(partnerInfo.birth.slice(0, 2));
+      const pBirthMonth = parseInt(partnerInfo.birth.slice(2, 4));
+      const pBirthDay = parseInt(partnerInfo.birth.slice(4, 6));
+
+      const partnerSajuResult = calculateSaju({
+        year: pBirthYear,
+        month: pBirthMonth,
+        day: pBirthDay,
+        hour: partnerInfo.hour === "99" ? undefined : parseInt(partnerInfo.hour),
+        minute: partnerInfo.hour === "99" ? undefined : parseInt(partnerInfo.min),
+        gender: partnerInfo.gender === "남자" ? "남" : "여",
+      });
+      partnerLlmFriendlyData = partnerSajuResult.toCompact();
+    }
+
     // 4. n8n 프리미엄 노드 호출
     const webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL || "";
     const response = await fetch(webhookUrl, {
@@ -386,6 +457,7 @@ const handlePremiumClick = async () => {
       setSajuResultText(data.result_text);
       setStep("result");
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      saveSajuHistory("premium", "프리미엄 인생 마스터플랜", data.result_text);
     } else {
       alert("서버 통신이 지연되고 있습니다. 다시 시도해주세요.");
       setStep("result");
@@ -435,6 +507,14 @@ const handlePremiumClick = async () => {
               <span className="font-bold text-white">{user.user_metadata?.name || "고객"}</span>님
             </div>
             
+            <button 
+              onClick={fetchMyHistory}
+              className="flex items-center justify-center bg-[#1c0d33] border border-[#a48cd1]/50 w-8 h-8 md:w-9 md:h-9 rounded-full hover:bg-[#D4AF37]/20 hover:border-[#D4AF37] transition-all shadow-[0_0_10px_rgba(212,175,55,0.1)]"
+              title="내 운세 보관함"
+            >
+              <span className="text-[15px] md:text-base">🗂️</span>
+            </button>
+
             {/* 포인트 및 충전 버튼 */}
             <button 
               onClick={() => setShowChargeModal(true)}
@@ -733,7 +813,14 @@ const handlePremiumClick = async () => {
                     {suggestedQuestions.map((q, idx) => (
                       <button
                         key={idx}
-                        onClick={() => handleFollowUp(q)}
+                        onClick={() => {
+                          if (!user) {
+                            setShowGuestModal(true);
+                            return;
+                          }
+                          // 꼬리질문 결제 대기열에 올림 (300P)
+                          setPendingPayment({ type: "followup", cost: 300, title: "심층 꼬리질문", payload: q });
+                        }}
                         className="bg-[#1a0b2e] border border-[#44237d] hover:border-[#D4AF37] hover:bg-[#D4AF37]/10 text-gray-300 hover:text-[#F3E5AB] text-xs px-4 py-2.5 rounded-full transition-all"
                       >
                         {q}
@@ -768,7 +855,14 @@ const handlePremiumClick = async () => {
                       {suggestedQuestions.map((q, idx) => (
                         <button
                           key={idx}
-                          onClick={() => handleFollowUp(q)}
+                          onClick={() => {
+                            if (!user) {
+                              setShowGuestModal(true);
+                              return;
+                            }
+                            // 꼬리질문 결제 대기열에 올림 (300P)
+                            setPendingPayment({ type: "followup", cost: 300, title: "심층 꼬리질문", payload: q });
+                          }}
                           className="bg-[#1a0b2e] border border-[#44237d] hover:border-[#D4AF37] hover:bg-[#D4AF37]/10 text-gray-300 hover:text-[#F3E5AB] text-xs px-4 py-2.5 rounded-full transition-all"
                         >
                           {q}
@@ -787,37 +881,49 @@ const handlePremiumClick = async () => {
               </div>
             </div>
 
-            {/* 📋 [결과 화면] 8개 운세 메뉴 (자판기식 그리드) */}
-          <div className="mt-8 space-y-6">
+            {/* 👇 1. 여기서 기존 결과창 뚜껑을 닫아줍니다 (제일 중요한 부분!) */}
+          </div>
+        )}
+
+        {/* ---------------------------------------------------- */}
+        {/* 👇 2. 로딩 중만 아니면 무조건 보여주는 새로운 조건 시작 (쇼윈도 전략) */}
+        {step !== "analyzing" && (
+          <div className="mt-12 space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700 relative z-10 pb-10">
             <div className="text-center">
               <h3 className="text-xl font-bold text-white mb-6">지금 궁금한 운세를 선택하세요</h3>
-             {/* 👑 프리미엄 사주 버튼 (강조) */}
-<div className="mb-6 relative z-20"> {/* 👈 요기 z-20 추가! */}
-  <button
-    onClick={() => {
-      // 1. 유저 정보가 없으면 (로그인 안 됨)
-      if (!user) {
-        alert("🎁 회원가입 후 이용 가능합니다!");
-        handleGoogleLogin();
-      } else {
-        // 2. 유저 정보가 있으면 모달창 띄우기
-        setShowPremiumGate(true); 
-      }
-    }}
-    className="w-full bg-gradient-to-r from-[#44237d] to-[#1a0b2e] border-2 border-[#D4AF37] p-6 rounded-3xl text-left relative z-20 overflow-hidden group hover:border-[#F3E5AB] transition-all cursor-pointer"
-  >
-    <div className="absolute top-0 right-0 bg-[#D4AF37] text-[#1a0b2e] font-extrabold text-[10px] px-3 py-1 rounded-bl-xl z-30">BEST</div>
-    <div className="flex items-center gap-3 relative z-30">
-      <div className="text-3xl">👑</div>
-      <div>
-        <div className="text-white font-bold text-lg">프리미엄 인생 마스터플랜</div>
-        <div className="text-[#a48cd1] text-xs mt-1">인생 총평 + 재물/직업 + 연애/가족 + 건강/행운 (4,000자 정밀 분석)</div>
-      </div>
-    </div>
-  </button>
-</div>
+              
+              {/* 👑 프리미엄 사주 버튼 (비회원/회원 분기 처리 완료) */}
+              <div className="mb-6 relative z-20">
+                <button
+                 onClick={() => {
+                  if (!userInfo.name || !userInfo.birth) {
+                    alert("먼저 상단에 사주 명식을 입력해주세요!");
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    return;
+                  }
+                  
+                  if (!user) {
+                    setShowGuestModal(true); 
+                  } else {
+                    // 🌟 [핵심 변경] 기존 모달 대신, 2000P짜리 결제 장바구니에 담습니다!
+                    setPendingPayment({ type: "premium", cost: 2000, title: "프리미엄 인생 마스터플랜", payload: null });
+                  }
+                }}
+                  className="w-full bg-gradient-to-r from-[#44237d] to-[#1a0b2e] border-2 border-[#D4AF37] p-6 rounded-3xl text-left relative z-20 overflow-hidden group hover:border-[#F3E5AB] transition-all cursor-pointer shadow-lg"
+                >
+                  <div className="absolute top-0 right-0 bg-[#D4AF37] text-[#1a0b2e] font-extrabold text-[10px] px-3 py-1 rounded-bl-xl z-30">BEST</div>
+                  <div className="flex items-center gap-3 relative z-30">
+                    <div className="text-3xl">👑</div>
+                    <div>
+                      <div className="text-white font-bold text-lg">프리미엄 인생 마스터플랜</div>
+                      <div className="text-[#a48cd1] text-xs mt-1">인생 총평 + 재물/직업 + 연애/가족 + 건강/행운 (4,000자 정밀 분석)</div>
+                    </div>
+                  </div>
+                </button>
+              </div>
+
               {/* 8개 메뉴 그리드 */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
                 {[
                   { icon: "⚡", title: "월별 풀이", desc: "주의할 날/기간" },
                   { icon: "📈", title: "연도별 흐름", desc: "해마다의 기운" },
@@ -830,17 +936,30 @@ const handlePremiumClick = async () => {
                 ].map((item, idx) => (
                   <button
                     key={idx}
-                    onClick={() => handleMenuClick(item.title, item.title, item.desc)}
-                    className="p-4 bg-[#15072a]/50 border border-[#3b1d6b] rounded-2xl hover:bg-[#1e0c3a] hover:border-[#D4AF37] transition-all text-left group shadow-lg"
+                    onClick={() => {
+                      if (!user) {
+                        setShowGuestModal(true);
+                        return;
+                      }
+                      // 8메뉴 결제 대기열에 올림 (500P)
+                      setPendingPayment({ type: "menu", cost: 500, title: item.title, payload: item });
+                    }}
+                    // 👇 모바일 여백(p-3.5) 조정 및 높이 정렬
+                    className="p-3.5 sm:p-4 bg-[#15072a]/50 border border-[#3b1d6b] rounded-2xl hover:bg-[#1e0c3a] hover:border-[#D4AF37] transition-all text-left group shadow-lg flex flex-col justify-start"
                   >
-                    <div className="text-2xl mb-2">{item.icon}</div>
-                    <div className="font-bold text-white group-hover:text-[#D4AF37] text-sm md:text-base">{item.title}</div>
-                    <div className="text-[10px] md:text-xs text-[#a48cd1] mt-1">{item.desc}</div>
+                    <div className="text-2xl mb-2 sm:mb-2.5">{item.icon}</div>
+                    {/* 👇 break-keep 추가: "월별 풀이"가 "월별" / "풀이" 로 예쁘게 떨어짐 */}
+                    <div className="font-bold text-white group-hover:text-[#D4AF37] text-[13px] sm:text-sm md:text-base break-keep leading-snug">
+                      {item.title}
+                    </div>
+                    {/* 👇 서브 텍스트도 단어 단위로 줄바꿈되도록 최적화 */}
+                    <div className="text-[10px] sm:text-[11px] md:text-xs text-[#a48cd1] mt-1 sm:mt-1.5 break-keep leading-tight">
+                      {item.desc}
+                    </div>
                   </button>
                 ))}
               </div>
             </div>
-          </div>
           </div>
         )}
 
@@ -896,50 +1015,200 @@ const handlePremiumClick = async () => {
           </div>
         </div>
       )}
-      {/* 👑 [모달] 프리미엄 결제 관문 (여기에 있어야 화면에 보입니다!) */}
-      {showPremiumGate && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-5 animate-in fade-in">
+     
+      {/* ---------------------------------------------------- */}
+      {showGuestModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[100] flex items-center justify-center p-5 animate-in fade-in">
+          <div className="bg-[#120524] border border-[#D4AF37]/50 w-full max-w-sm rounded-3xl p-6 shadow-2xl relative">
+            <div className="text-center mb-6">
+              <div className="inline-block bg-[#D4AF37]/20 p-3 rounded-full mb-3">
+                <Gift size={32} className="text-[#D4AF37]" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">프리미엄 운세 잠금 해제</h3>
+              <p className="text-sm text-[#a48cd1] leading-relaxed">
+                3초 만에 가입하면 심층 분석용<br/>
+                <span className="text-[#D4AF37] font-bold text-base">1,000 포인트</span>를 즉시 드립니다!
+              </p>
+            </div>
+            
+            <div className="space-y-3">
+              {/* 1번 버튼: 구글 로그인 연동 */}
+              <button 
+                onClick={() => {
+                  setShowGuestModal(false); // 모달 닫고
+                  handleGoogleLogin();      // 로그인 실행!
+                }}
+                className="w-full py-4 bg-white text-[#1a0b2e] rounded-xl font-extrabold text-sm flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(255,255,255,0.2)] transition-all hover:bg-gray-100"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                </svg>
+                구글로 1초 만에 시작하기
+              </button>
+              
+              {/* 2번 버튼: 기존 계좌이체 모달로 자연스럽게 토스! */}
+              <button 
+                onClick={() => {
+                  setShowGuestModal(false);  // 이 모달은 닫고
+                  setShowChargeModal(true);  // 기존 충전소(계좌이체) 모달을 연다!
+                }}
+                className="w-full py-4 bg-[#1c0d33] border border-[#3b1d6b] text-gray-300 rounded-xl font-bold text-sm hover:border-[#D4AF37]/50 transition-all"
+              >
+                가입 없이 1회권(계좌이체) 이용하기
+              </button>
+            </div>
+
+            <button 
+              onClick={() => setShowGuestModal(false)}
+              className="w-full mt-5 py-2 text-xs text-[#a48cd1] underline hover:text-white transition-colors"
+            >
+              다음에 할게요 (닫기)
+            </button>
+          </div>
+        </div>
+      )}
+      {/* 👇👇👇 [여기에 복사해서 붙여넣으세요!] 통합 결제 모달창 👇👇👇 */}
+      {/* 💳 [통합 모달] 포인트 결제 및 DB 차감 관문 */}
+      {pendingPayment && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[100] flex items-center justify-center p-5 animate-in fade-in">
           <div className="bg-[#120524] border border-[#D4AF37]/50 w-full max-w-sm rounded-3xl p-6 shadow-2xl relative overflow-hidden">
             <div className="text-center space-y-4">
-              <div className="text-4xl">👑</div>
+              <div className="text-4xl">
+                {pendingPayment.type === 'premium' ? '👑' : pendingPayment.type === 'menu' ? '🔮' : '💡'}
+              </div>
               <div>
-                <h3 className="text-xl font-bold text-white">프리미엄 마스터플랜</h3>
-                <p className="text-sm text-[#a48cd1] mt-1">4,000자 정밀 분석을 시작할까요?</p>
+                <h3 className="text-xl font-bold text-white">{pendingPayment.title}</h3>
+                <p className="text-sm text-[#a48cd1] mt-1">결제 동의 시 정밀 분석이 시작됩니다.</p>
               </div>
               
               <div className="bg-[#0a0514] p-4 rounded-2xl border border-[#3b1d6b] my-4">
                 <p className="text-xs text-[#a48cd1]">차감 예정 포인트</p>
-                <p className="text-2xl font-bold text-[#D4AF37]">2,000 P</p>
+                <p className="text-2xl font-bold text-[#D4AF37]">{pendingPayment.cost.toLocaleString()} P</p>
               </div>
             </div>
 
             <div className="flex gap-3 mt-6">
               <button 
-                onClick={() => setShowPremiumGate(false)} 
-                className="flex-1 py-3 bg-[#1c0d33] text-[#a48cd1] rounded-xl font-bold text-sm"
+                onClick={() => setPendingPayment(null)} 
+                className="flex-1 py-3 bg-[#1c0d33] border border-[#3b1d6b] text-[#a48cd1] rounded-xl font-bold text-sm hover:bg-[#2a144a] transition-colors"
               >
                 취소
               </button>
               <button 
-                onClick={() => {
-                  setShowPremiumGate(false); // 1. 모달창 닫기
-                  if (points >= 2000) {
-                    setPoints(prev => prev - 2000); // 2. 포인트 차감
-                    handlePremiumClick(); // 3. 👈 대망의 n8n 프리미엄 분석 엔진 가동!
-                  } else {
-                    alert("포인트가 부족합니다!");
-                    setShowChargeModal(true); // 포인트 부족 시 충전창 띄우기
+                onClick={async () => {
+                  // 1. 잔액 확인
+                  if (points < pendingPayment.cost) {
+                    alert("포인트가 부족합니다. 충전 후 이용해주세요!");
+                    setPendingPayment(null);
+                    setShowChargeModal(true);
+                    return;
+                  }
+
+                  // 2. 🌟 [핵심] 실제 Supabase DB에서 포인트 차감!
+                  const newPoints = points - pendingPayment.cost;
+                  const { error } = await supabase
+                    .from('user_profiles')
+                    .update({ points: newPoints })
+                    .eq('id', user.id);
+
+                  if (error) {
+                    console.error("DB 차감 에러:", error);
+                    alert("결제 처리 중 오류가 발생했습니다.");
+                    return;
+                  }
+
+                  // 3. 결제 성공 시 화면 잔고 업데이트 및 모달 닫기
+                  setPoints(newPoints);
+                  const action = pendingPayment; // 실행할 작업 백업
+                  setPendingPayment(null);
+
+                  // 4. 구매한 상품에 맞는 분석 엔진 가동!
+                  if (action.type === "premium") {
+                    handlePremiumClick();
+                  } else if (action.type === "menu") {
+                    handleMenuClick(action.payload.title, action.payload.title, action.payload.desc);
+                  } else if (action.type === "followup") {
+                    handleFollowUp(action.payload);
                   }
                 }} 
-                className="flex-[2] py-3 bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] rounded-xl font-bold text-sm shadow-lg"
+                className="flex-[2] py-3 bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] rounded-xl font-bold text-sm shadow-[0_0_15px_rgba(212,175,55,0.3)] hover:brightness-110 transition-all"
               >
-                분석 시작하기
+                동의하고 분석 시작
               </button>
             </div>
           </div>
         </div>
       )}
-      {/* ---------------------------------------------------- */}
+      {/* 🗂️ [모달] 내 운세 보관함 */}
+      {showHistoryModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[100] flex flex-col items-center justify-center p-5 animate-in fade-in">
+          <div className="bg-[#120524] border border-[#D4AF37]/50 w-full max-w-md max-h-[85vh] rounded-3xl flex flex-col shadow-2xl relative overflow-hidden">
+            
+            {/* 헤더 */}
+            <div className="p-5 border-b border-[#3b1d6b] flex justify-between items-center bg-[#0a0514]">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                🗂️ 내 운세 보관함
+              </h3>
+              <button 
+                onClick={() => { setShowHistoryModal(false); setSelectedHistory(null); }} 
+                className="text-gray-400 hover:text-white text-3xl font-light leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* 본문 영역 (스크롤 가능) */}
+            <div className="p-5 overflow-y-auto flex-1 space-y-3">
+              {selectedHistory ? (
+                // 📝 상세 보기 화면 (리스트 중 하나를 클릭했을 때)
+                <div className="animate-in slide-in-from-right-4 duration-300">
+                  <button 
+                    onClick={() => setSelectedHistory(null)} 
+                    className="text-[#D4AF37] text-sm font-bold mb-5 flex items-center gap-1 hover:text-[#F3E5AB]"
+                  >
+                    ← 목록으로 돌아가기
+                  </button>
+                  <h4 className="text-xl font-bold text-white mb-2">{selectedHistory.title}</h4>
+                  <p className="text-xs text-[#a48cd1] mb-5">
+                    {new Date(selectedHistory.created_at).toLocaleString('ko-KR', { year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' })}
+                  </p>
+                  <div className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap bg-[#0a0514] p-5 rounded-2xl border border-[#3b1d6b]">
+                    {selectedHistory.content}
+                  </div>
+                </div>
+              ) : (
+                // 📋 리스트 화면 (처음 켰을 때)
+                historyList.length === 0 ? (
+                  <div className="text-center py-12 text-[#a48cd1] text-sm">
+                    보관된 운세가 없습니다.<br/>사주를 분석하고 결과를 저장해보세요!
+                  </div>
+                ) : (
+                  historyList.map((item, idx) => (
+                    <div 
+                      key={idx} 
+                      onClick={() => setSelectedHistory(item)}
+                      className="bg-[#1a0b2e] border border-[#3b1d6b] p-4 rounded-2xl cursor-pointer hover:border-[#D4AF37] hover:bg-[#2a144a] transition-all group shadow-md"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-[#D4AF37] font-bold text-sm group-hover:text-[#F3E5AB]">{item.title}</span>
+                        <span className="text-[10px] text-gray-500 bg-black/50 px-2 py-1 rounded-md">
+                          {new Date(item.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-400 line-clamp-2 leading-relaxed">
+                        {item.content}
+                      </p>
+                    </div>
+                  ))
+                )
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 
