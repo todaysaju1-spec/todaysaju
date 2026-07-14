@@ -44,7 +44,7 @@ export default function Footer() {
           </form>
           
           {/* 마크 이미지 및 클릭 버튼 */}
-          <a href="#" onClickOpen={openKBEscrow} className="block">
+          <a href="#" onClick={openKBEscrow} className="block">
             <img 
               src="http://img1.kbstar.com/img/escrow/escrowcmark.gif" 
               alt="KB국민은행 에스크로 구매안전서비스" 
