@@ -2,120 +2,252 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { CheckCircle2, Wallet, Users, CreditCard } from "lucide-react";
 
 export default function AdminDashboard() {
-  const [users, setUsers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"deposits" | "users">("deposits");
 
-  // 1. Supabase에서 모든 유저 정보 불러오기
+  const [users, setUsers] = useState<any[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+
+  const [requests, setRequests] = useState<any[]>([]);
+  const [loadingRequests, setLoadingRequests] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === "users") fetchUsers();
+    if (activeTab === "deposits") fetchRequests();
+  }, [activeTab]);
+
   const fetchUsers = async () => {
-    setLoading(true);
+    setLoadingUsers(true);
     const { data, error } = await supabase
       .from("user_profiles")
       .select("*")
-      .order("created_at", { ascending: false }); // 최신 가입자순 정렬
+      .order("created_at", { ascending: false });
 
-    if (error) {
-      console.error("유저 불러오기 에러:", error);
-    } else {
-      setUsers(data || []);
-    }
-    setLoading(false);
+    if (error) console.error("유저 불러오기 에러:", error);
+    else setUsers(data || []);
+    setLoadingUsers(false);
   };
 
-  // 화면이 켜질 때 유저 목록 불러오기 실행
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  // 2. 포인트 수정 함수 (관리자가 버튼 클릭 시 작동)
   const handleUpdatePoints = async (userId: string, currentPoints: number, userName: string) => {
     const newPoints = prompt(`[${userName}]님의 변경할 포인트 금액을 입력하세요:`, String(currentPoints || 0));
-    
-    // 취소를 누르거나 입력값이 없으면 무시
     if (newPoints === null || newPoints === "") return;
 
-    // 데이터베이스 업데이트
+    const parsedPoints = parseInt(newPoints);
     const { error } = await supabase
       .from("user_profiles")
-      .update({ points: parseInt(newPoints) })
+      .update({ points: parsedPoints, paid_points: parsedPoints }) 
       .eq("id", userId);
 
     if (error) {
       alert("❌ 포인트 수정 실패: " + error.message);
     } else {
       alert("✅ 포인트가 성공적으로 변경되었습니다.");
-      fetchUsers(); // 목록 새로고침 (화면 업데이트)
+      fetchUsers();
+    }
+  };
+
+  const fetchRequests = async () => {
+    setLoadingRequests(true);
+    const { data, error } = await supabase
+      .from('deposit_requests')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) console.error("입금 내역 에러:", error);
+    else setRequests(data || []);
+    setLoadingRequests(false);
+  };
+
+  const handleApprove = async (request: any) => {
+    const isConfirmed = confirm(`[${request.depositor_name}]님의 ${request.amount_krw.toLocaleString()}원 입금을 확인하셨습니까?\n확인을 누르면 ${request.paid_points + request.bonus_points}P가 지급됩니다.`);
+    if (!isConfirmed) return;
+
+    try {
+      const { data: userData, error: userError } = await supabase
+        .from('user_profiles')
+        .select('points, paid_points, bonus_points')
+        .eq('id', request.user_id)
+        .single();
+
+      if (userError) throw userError;
+
+      const newTotal = (userData.points || 0) + request.paid_points + request.bonus_points;
+      const newPaid = (userData.paid_points || 0) + request.paid_points;
+      const newBonus = (userData.bonus_points || 0) + request.bonus_points;
+
+      const { error: updateError } = await supabase
+        .from('user_profiles')
+        .update({ points: newTotal, paid_points: newPaid, bonus_points: newBonus })
+        .eq('id', request.user_id);
+
+      if (updateError) throw updateError;
+
+      const { error: reqError } = await supabase
+        .from('deposit_requests')
+        .update({ status: 'completed' })
+        .eq('id', request.id);
+
+      if (reqError) throw reqError;
+
+      alert("🎉 포인트 지급이 완료되었습니다!");
+      fetchRequests();
+
+    } catch (error) {
+      console.error("지급 중 오류 발생:", error);
+      alert("지급 처리 중 오류가 발생했습니다.");
     }
   };
 
   return (
     <div className="min-h-screen bg-[#0a0514] text-white p-5 md:p-10 font-sans selection:bg-[#D4AF37]/30">
-      <div className="max-w-5xl mx-auto space-y-8">
+      <div className="max-w-6xl mx-auto space-y-8">
         
-        {/* 헤더 부분 */}
-        <div className="flex items-center justify-between border-b border-[#3b1d6b] pb-5">
-          <div>
-            <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB] flex items-center gap-3">
-              👑 오늘의사주 최고관리자
-            </h1>
-            <p className="text-sm text-[#a48cd1] mt-2">회원 정보 및 포인트 관리 대시보드</p>
-          </div>
-          <div className="bg-[#1c0d33] border border-[#D4AF37]/50 px-4 py-2 rounded-xl text-sm font-bold text-[#D4AF37]">
-            총 가입자: {users.length}명
+        <div className="border-b border-[#3b1d6b] pb-6">
+          <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB] flex items-center gap-3 mb-6">
+            👑 오늘의사주 최고관리자
+          </h1>
+          
+          <div className="flex gap-4">
+            <button 
+              onClick={() => setActiveTab("deposits")}
+              className={`flex items-center gap-2 px-6 py-3 rounded-t-xl font-bold transition-all ${
+                activeTab === "deposits" 
+                  ? "bg-[#1c0d33] border-t border-l border-r border-[#D4AF37] text-[#D4AF37]" 
+                  : "bg-transparent text-gray-400 hover:text-white"
+              }`}
+            >
+              <CreditCard size={18} /> 무통장 입금 관리
+            </button>
+            <button 
+              onClick={() => setActiveTab("users")}
+              className={`flex items-center gap-2 px-6 py-3 rounded-t-xl font-bold transition-all ${
+                activeTab === "users" 
+                  ? "bg-[#1c0d33] border-t border-l border-r border-[#D4AF37] text-[#D4AF37]" 
+                  : "bg-transparent text-gray-400 hover:text-white"
+              }`}
+            >
+              <Users size={18} /> 전체 회원 관리
+            </button>
           </div>
         </div>
 
-        {/* 유저 데이터 테이블 */}
-        <div className="bg-[#15072a]/90 backdrop-blur-xl rounded-2xl border border-[#3b1d6b] overflow-hidden shadow-2xl">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse whitespace-nowrap">
-              <thead>
-                <tr className="bg-[#1c0d33] border-b border-[#3b1d6b]">
-                  <th className="p-4 text-sm text-[#a48cd1] font-medium">이름</th>
-                  <th className="p-4 text-sm text-[#a48cd1] font-medium">성별</th>
-                  <th className="p-4 text-sm text-[#a48cd1] font-medium">생년월일</th>
-                  <th className="p-4 text-sm text-[#a48cd1] font-medium">가입일 (마지막 접속)</th>
-                  <th className="p-4 text-sm text-[#a48cd1] font-medium">보유 포인트</th>
-                  <th className="p-4 text-sm text-[#a48cd1] font-medium text-center">관리 액션</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={6} className="p-8 text-center text-gray-400 animate-pulse">
-                      데이터를 불러오는 중입니다...
-                    </td>
+        {/* 탭 1: 무통장 입금 관리 화면 */}
+        {activeTab === "deposits" && (
+          <div className="bg-[#15072a]/90 backdrop-blur-xl rounded-b-2xl rounded-tr-2xl border border-[#3b1d6b] overflow-hidden shadow-2xl animate-in fade-in duration-300">
+            <div className="p-4 bg-[#1c0d33] border-b border-[#3b1d6b] flex justify-between items-center">
+              <span className="text-[#a48cd1] font-bold">입금 신청 내역</span>
+              <button onClick={fetchRequests} className="text-xs bg-[#D4AF37]/20 text-[#D4AF37] px-3 py-1.5 rounded hover:bg-[#D4AF37]/30">🔄 새로고침</button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse whitespace-nowrap">
+                <thead>
+                  <tr className="bg-[#1c0d33]/50 border-b border-[#3b1d6b]">
+                    <th className="p-4 text-sm text-[#a48cd1] font-medium">신청일시</th>
+                    <th className="p-4 text-sm text-[#a48cd1] font-medium">입금자명 (계정)</th>
+                    <th className="p-4 text-sm text-[#a48cd1] font-medium">입금(예정) 금액</th>
+                    <th className="p-4 text-sm text-[#a48cd1] font-medium">지급할 포인트</th>
+                    <th className="p-4 text-sm text-[#a48cd1] font-medium text-center">관리 액션</th>
                   </tr>
-                ) : (
-                  users.map((u) => (
-                    <tr key={u.id} className="border-b border-[#3b1d6b]/50 hover:bg-[#1e0c3a] transition-colors">
-                      <td className="p-4 font-bold text-white">{u.display_name || "미입력"}</td>
-                      <td className="p-4 text-sm text-gray-300">{u.gender || "-"}</td>
-                      <td className="p-4 text-sm text-gray-300">{u.birth_date || "-"}</td>
-                      <td className="p-4 text-xs text-gray-400">
-                        {new Date(u.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="p-4">
-                        <span className="bg-[#D4AF37]/10 text-[#D4AF37] px-3 py-1 rounded-full font-bold text-sm border border-[#D4AF37]/30">
-                          {(u.points || 0).toLocaleString()} P
-                        </span>
-                      </td>
-                      <td className="p-4 text-center">
-                        <button 
-                          onClick={() => handleUpdatePoints(u.id, u.points, u.display_name)}
-                          className="bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] px-4 py-2 rounded-lg text-xs font-bold hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all"
-                        >
-                          포인트 충전/수정
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {loadingRequests ? (
+                    <tr><td colSpan={5} className="p-8 text-center text-gray-400 animate-pulse">데이터를 불러오는 중입니다...</td></tr>
+                  ) : requests.length === 0 ? (
+                    <tr><td colSpan={5} className="p-8 text-center text-gray-400">접수된 신청 내역이 없습니다.</td></tr>
+                  ) : (
+                    requests.map((req) => (
+                      <tr key={req.id} className="border-b border-[#3b1d6b]/50 hover:bg-[#1e0c3a] transition-colors">
+                        <td className="p-4 text-xs text-gray-400">{new Date(req.created_at).toLocaleString()}</td>
+                        <td className="p-4">
+                          <div className="font-bold text-white">{req.depositor_name}</div>
+                          {/* 식별을 위한 이메일 표시 추가 */}
+                          <div className="text-[10px] text-gray-500 font-mono mt-0.5">{req.user_email || "이메일 정보 없음"}</div>
+                        </td>
+                        <td className="p-4 font-bold text-[#F3E5AB]">{req.amount_krw.toLocaleString()}원</td>
+                        <td className="p-4">
+                          <span className="text-[#D4AF37] font-bold">{(req.paid_points + req.bonus_points).toLocaleString()} P</span>
+                        </td>
+                        <td className="p-4 text-center">
+                          {req.status === 'pending' ? (
+                            <button 
+                              onClick={() => handleApprove(req)}
+                              className="w-full bg-[#D4AF37] hover:bg-[#F3E5AB] text-black font-extrabold py-2 px-3 rounded-lg flex items-center justify-center gap-1 transition-all text-xs"
+                            >
+                              <Wallet size={14} /> 지급 완료
+                            </button>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 bg-green-900/30 text-green-400 border border-green-800/50 px-3 py-2 rounded-lg text-xs font-bold w-full justify-center">
+                              <CheckCircle2 size={14} /> 처리됨
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* 탭 2: 전체 회원 관리 화면 */}
+        {activeTab === "users" && (
+          <div className="bg-[#15072a]/90 backdrop-blur-xl rounded-b-2xl rounded-tr-2xl border border-[#3b1d6b] overflow-hidden shadow-2xl animate-in fade-in duration-300">
+            <div className="p-4 bg-[#1c0d33] border-b border-[#3b1d6b] flex justify-between items-center">
+              <span className="text-[#a48cd1] font-bold">전체 가입자: {users.length}명</span>
+              <button onClick={fetchUsers} className="text-xs bg-[#D4AF37]/20 text-[#D4AF37] px-3 py-1.5 rounded hover:bg-[#D4AF37]/30">🔄 새로고침</button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse whitespace-nowrap">
+                <thead>
+                  <tr className="bg-[#1c0d33]/50 border-b border-[#3b1d6b]">
+                    <th className="p-4 text-sm text-[#a48cd1] font-medium">이름 (계정ID)</th>
+                    <th className="p-4 text-sm text-[#a48cd1] font-medium">성별</th>
+                    <th className="p-4 text-sm text-[#a48cd1] font-medium">생년월일</th>
+                    <th className="p-4 text-sm text-[#a48cd1] font-medium">가입일</th>
+                    <th className="p-4 text-sm text-[#a48cd1] font-medium">보유 포인트</th>
+                    <th className="p-4 text-sm text-[#a48cd1] font-medium text-center">관리 액션</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loadingUsers ? (
+                    <tr><td colSpan={6} className="p-8 text-center text-gray-400 animate-pulse">데이터를 불러오는 중입니다...</td></tr>
+                  ) : (
+                    users.map((u) => (
+                      <tr key={u.id} className="border-b border-[#3b1d6b]/50 hover:bg-[#1e0c3a] transition-colors">
+                        <td className="p-4">
+                          <div className="font-bold text-white">{u.display_name || "미입력"}</div>
+                          {/* 고유 식별자(이메일 또는 ID 앞자리) 표시 */}
+                          <div className="text-[10px] text-gray-500 font-mono mt-0.5" title={u.id}>
+                            {u.email || `ID: ${u.id.slice(0, 8)}...`}
+                          </div>
+                        </td>
+                        <td className="p-4 text-sm text-gray-300">{u.gender || "-"}</td>
+                        <td className="p-4 text-sm text-gray-300">{u.birth_date || "-"}</td>
+                        <td className="p-4 text-xs text-gray-400">{new Date(u.created_at).toLocaleDateString()}</td>
+                        <td className="p-4">
+                          <span className="bg-[#D4AF37]/10 text-[#D4AF37] px-3 py-1 rounded-full font-bold text-sm border border-[#D4AF37]/30">
+                            {(u.points || 0).toLocaleString()} P
+                          </span>
+                        </td>
+                        <td className="p-4 text-center">
+                          <button 
+                            onClick={() => handleUpdatePoints(u.id, u.points, u.display_name)}
+                            className="bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] px-4 py-2 rounded-lg text-xs font-bold hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all"
+                          >
+                            포인트 강제 수정
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

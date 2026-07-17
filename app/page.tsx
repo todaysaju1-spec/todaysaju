@@ -25,7 +25,7 @@ export default function TodaySajuLanding() {
   const [points, setPoints] = useState(1000); // 가입 축하금 1,000P 기본 지급!
   const [hasUsedDailyFree, setHasUsedDailyFree] = useState(false);
   const [showChargeModal, setShowChargeModal] = useState(false);
-  const [loadingText, setLoadingText] = useState("당신이 태어난 날의 우주 궤도를 계산 중입니다...");
+  const [loadingText, setLoadingText] = useState("명식(命式)을 세우고 타고난 기운의 흐름을 짚어보고 있습니다.\n(예상 소요 시간: 1~2분)");
   const [sajuResultText, setSajuResultText] = useState("");
   // 💡 [추가] 랜덤 별자리 데이터를 담을 state
 const [stars, setStars] = useState<any[]>([]);
@@ -53,6 +53,53 @@ const [showGuestModal, setShowGuestModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyList, setHistoryList] = useState<any[]>([]);
   const [selectedHistory, setSelectedHistory] = useState<any>(null); // 리스트에서 클릭한 상세 내역
+ // 포인트 충전용 상태 추가
+  const [selectedPackage, setSelectedPackage] = useState<any>(null);
+  const [depositorName, setDepositorName] = useState("");
+  // (기존 코드) 꼬리질문 상태 아래나 편한 곳에 추가해 주세요!
+  const [showResultForm, setShowResultForm] = useState(false); // 👈 결과창 접이식 폼 스위치
+  // 🪄 내 사주 명식 자동 불러오기
+  const fetchMySavedInfo = async () => {
+    if (!user) return alert("로그인 후 이용 가능합니다!");
+    
+    const { data, error } = await supabase.from('user_profiles').select('*').eq('id', user.id).single();
+    
+    if (data && data.birth_date) {
+      setUserInfo(prev => ({
+        ...prev,
+        name: data.display_name || "",
+        birth: data.birth_date || "",
+        hour: data.birth_hour || "12",
+        min: data.birth_min || "00",
+        gender: data.gender || "남자",
+        isTimeKnown: data.birth_hour !== "99" // 99시(모름)가 아니면 시간 안다고 체크
+      }));
+    } else {
+      alert("아직 저장된 사주 정보가 없습니다.\n최초 1회 사주를 분석하시면 정보가 자동 저장됩니다!");
+    }
+  };
+
+  // 🪄 파트너 사주 명식 자동 불러오기
+  const fetchPartnerSavedInfo = async () => {
+    if (!user) return alert("로그인 후 이용 가능합니다!");
+    
+    const { data, error } = await supabase.from('user_profiles').select('*').eq('id', user.id).single();
+    
+    if (data && data.partner_birth) {
+      setPartnerInfo({
+        name: data.partner_name || "",
+        birth: data.partner_birth || "",
+        hour: data.partner_hour || "12",
+        min: data.partner_min || "00",
+        gender: data.partner_gender || "여자",
+        calendarType: data.partner_calendar_type || "양력",
+        isTimeKnown: data.partner_is_time_known || false
+      });
+      setShowPartner(true); // 정보가 있으면 파트너 입력창을 자동으로 열어줌
+    } else {
+      alert("아직 저장된 파트너 정보가 없습니다.\n분석 시 파트너 정보를 입력하시면 자동 저장됩니다!");
+    }
+  };
 // 💡 [추가] 브라우저에 화면이 뜬(마운트 된) 직후에만 랜덤 값을 계산합니다.
 useEffect(() => {
   const generatedStars = [...Array(35)].map(() => ({
@@ -186,7 +233,7 @@ const fetchMyHistory = async () => {
   }
 
   setStep("analyzing");
-  setLoadingText("만세력 데이터를 분석하여 사주 원국을 구성하고 있습니다...");
+  setLoadingText("명식(命式)을 세우고 타고난 기운의 흐름을 짚어보고 있습니다.\n(예상 소요 시간: 1~2분)");
 
   try {
     // 1. Supabase 유저 데이터 저장
@@ -257,7 +304,15 @@ partner_is_time_known: showPartner ? partnerInfo.isTimeKnown : false
 
     if (response.ok) {
       const data = await response.json(); 
-      setSajuResultText(data.result_text); 
+      const rawResult = data.result_text;
+      if (rawResult.includes("@@@")) {
+        const [mainText, questionsPart] = rawResult.split("@@@");
+        setSajuResultText(mainText.trim()); 
+        const dynamicQuestions = questionsPart.split("||").map(q => q.trim()).filter(q => q !== "").map(q => `✨ ${q}`); 
+        setSuggestedQuestions(dynamicQuestions);
+      } else {
+        setSajuResultText(rawResult);
+      }
       setStep("result");
       setHasUsedDailyFree(true);
       saveSajuHistory("free", "오늘의 무료 사주", data.result_text);
@@ -347,7 +402,7 @@ const handleFollowUp = async (question: string) => {
 
     // 3. 로딩 화면 띄우기 및 분석 시작
     setStep("analyzing");
-    
+    setLoadingText(`선택하신 [${title}]의 흐름을 명리학적으로 깊이 짚어보고 있습니다.\n(예상 소요 시간: 1~2분)`);
     try {
       // 4. 만세력 데이터 상세 계산 (n8n 전송용)
       const yearPrefix = parseInt(userInfo.birth.slice(0, 2)) > 30 ? 1900 : 2000;
@@ -381,7 +436,15 @@ const handleFollowUp = async (question: string) => {
 
       if (response.ok) {
         const data = await response.json();
-        setSajuResultText(data.result_text); // 메인 결과창 텍스트를 전문 리포트로 교체
+        const rawResult = data.result_text;
+      if (rawResult.includes("@@@")) {
+        const [mainText, questionsPart] = rawResult.split("@@@");
+        setSajuResultText(mainText.trim()); 
+        const dynamicQuestions = questionsPart.split("||").map(q => q.trim()).filter(q => q !== "").map(q => `✨ ${q}`); 
+        setSuggestedQuestions(dynamicQuestions);
+      } else {
+        setSajuResultText(rawResult);
+      }
         setStep("result");
         window.scrollTo({ top: 0, behavior: 'smooth' }); // 화면 맨 위로 부드럽게 스크롤
         saveSajuHistory("menu", title, data.result_text);
@@ -413,7 +476,7 @@ const handlePremiumClick = async () => {
   }
 
   setStep("analyzing");
-  setLoadingText("사주, 재물, 연애, 건강 전문가 4인이 당신의 운명을 정밀 분석 중입니다...");
+  setLoadingText("대운(大運)과 세운(歲運)을 교차하여 심층 마스터플랜을 구성 중입니다.\n운명의 전체 궤도를 분석하는 정밀 작업으로 약 5~9분 정도 소요됩니다.");
 
   try {
     // 3. 만세력 데이터 계산 (기존 로직 그대로 재사용)
@@ -466,7 +529,15 @@ const handlePremiumClick = async () => {
 
     if (response.ok) {
       const data = await response.json();
-      setSajuResultText(data.result_text);
+      const rawResult = data.result_text;
+        if (rawResult.includes("@@@")) {
+          const [mainText, questionsPart] = rawResult.split("@@@");
+          setSajuResultText(mainText.trim()); 
+          const dynamicQuestions = questionsPart.split("||").map(q => q.trim()).filter(q => q !== "").map(q => `✨ ${q}`); 
+          setSuggestedQuestions(dynamicQuestions);
+        } else {
+          setSajuResultText(rawResult);
+        }
       setStep("result");
       window.scrollTo({ top: 0, behavior: 'smooth' });
       saveSajuHistory("premium", "프리미엄 인생 마스터플랜", data.result_text);
@@ -625,7 +696,18 @@ const handlePremiumClick = async () => {
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-500 mt-2">
           {/* 입력 폼 배경 */}
           <div className="bg-[#15072a]/90 backdrop-blur-xl p-7 rounded-3xl border border-[#44237d]/60 shadow-2xl space-y-6 text-left relative z-20">
-            
+            {/* 👇 새로 추가할 '내 명식 자동 입력' 버튼 👇 */}
+            {user && (
+              <div className="flex justify-end -mt-2 mb-2">
+                <button 
+                  type="button"
+                  onClick={fetchMySavedInfo}
+                  className="flex items-center gap-1.5 bg-[#1c0d33] border border-[#D4AF37]/60 text-[#D4AF37] px-4 py-2 rounded-xl text-xs font-bold hover:bg-[#D4AF37]/20 transition-all shadow-[0_0_10px_rgba(212,175,55,0.15)]"
+                >
+                  ✨ 내 사주 명식 자동 입력하기
+                </button>
+              </div>
+            )}
             {/* 1. 성함 */}
             <div>
               <label className="block text-sm font-medium text-[#a48cd1] mb-2 ml-1">성함</label>
@@ -723,24 +805,47 @@ const handlePremiumClick = async () => {
             </div>
 {/* 6. 파트너 정보 입력 (추가) */}
 <div className="mt-6 p-4 bg-[#1a0b2e] rounded-xl border border-[#44237d]">
-              <div className="flex justify-between items-center mb-2">
-                <label className="text-sm text-gray-300 font-bold">❤️ 파트너/배우자 정보 (선택)</label>
-                <button 
-                  type="button"
-                  onClick={() => setShowPartner(!showPartner)}
-                  className="text-xs bg-[#D4AF37]/20 text-[#D4AF37] px-2 py-1 rounded hover:bg-[#D4AF37]/30 transition-all"
-                >
-                  {showPartner ? "접기" : "입력하기"}
-                </button>
+              {/* 모바일 가독성을 위해 제목과 버튼을 위아래로 분리했습니다 */}
+              <div className="flex flex-col space-y-3 mb-4">
+                
+                {/* 라벨 (제목) */}
+                <label className="text-sm text-gray-300 font-bold flex items-center">
+                  ❤️ 파트너/배우자 정보 <span className="text-xs text-gray-500 font-normal ml-2">(선택)</span>
+                </label>
+                
+                {/* 버튼 그룹 (반반 꽉 차게 디자인) */}
+                <div className="flex gap-2 w-full">
+                  {user && (
+                    <button 
+                      type="button"
+                      onClick={fetchPartnerSavedInfo}
+                      className="flex-1 py-3 rounded-xl text-xs font-bold border border-[#a48cd1]/50 bg-[#1c0d33] text-[#a48cd1] hover:bg-[#2a144a] hover:text-white transition-all shadow-sm flex items-center justify-center gap-1"
+                    >
+                      ✨ 자동 불러오기
+                    </button>
+                  )}
+                  <button 
+                    type="button"
+                    onClick={() => setShowPartner(!showPartner)}
+                    className={`flex-1 py-3 rounded-xl text-xs font-bold border transition-all shadow-sm flex items-center justify-center ${
+                      showPartner 
+                        ? "border-gray-600 bg-gray-800 text-gray-400 hover:bg-gray-700" 
+                        : "border-[#D4AF37]/60 bg-[#D4AF37]/15 text-[#D4AF37] hover:bg-[#D4AF37]/25"
+                    }`}
+                  >
+                    {showPartner ? "입력창 닫기" : "직접 입력하기"}
+                  </button>
+                </div>
               </div>
               
               {showPartner && (
   <div className="space-y-4 mt-4 animate-in slide-in-from-top-2 duration-300">
     <input 
-      placeholder="파트너 성함" 
-      className="w-full bg-[#0a0514] p-3 rounded-xl text-sm text-white border border-[#3b1d6b]"
-      onChange={(e) => setPartnerInfo({...partnerInfo, name: e.target.value})}
-    />
+  placeholder="파트너 성함" 
+  className="w-full bg-[#0a0514] p-3 rounded-xl text-sm text-white border border-[#3b1d6b]"
+  value={partnerInfo.name}
+  onChange={(e) => setPartnerInfo({...partnerInfo, name: e.target.value})}
+/>
     <div className="grid grid-cols-2 gap-2">
       <button type="button" onClick={() => setPartnerInfo({...partnerInfo, gender: "남자"})}
         className={`py-2 rounded-lg text-xs font-bold border ${partnerInfo.gender === "남자" ? "bg-[#D4AF37]/20 border-[#D4AF37]" : "bg-[#0a0514] border-[#3b1d6b]"}`}>남자</button>
@@ -748,10 +853,11 @@ const handlePremiumClick = async () => {
         className={`py-2 rounded-lg text-xs font-bold border ${partnerInfo.gender === "여자" ? "bg-[#D4AF37]/20 border-[#D4AF37]" : "bg-[#0a0514] border-[#3b1d6b]"}`}>여자</button>
     </div>
     <input 
-      placeholder="생년월일 (6자리)" 
-      className="w-full bg-[#0a0514] p-3 rounded-xl text-sm text-white border border-[#3b1d6b]"
-      onChange={(e) => setPartnerInfo({...partnerInfo, birth: e.target.value})}
-    />
+  placeholder="생년월일 (6자리)" 
+  className="w-full bg-[#0a0514] p-3 rounded-xl text-sm text-white border border-[#3b1d6b]"
+  value={partnerInfo.birth}
+  onChange={(e) => setPartnerInfo({...partnerInfo, birth: e.target.value})}
+/>
     <div className="flex gap-2">
       <button type="button" onClick={() => setPartnerInfo({...partnerInfo, isTimeKnown: false})}
         className={`flex-1 py-2 rounded-lg text-xs border ${!partnerInfo.isTimeKnown ? "border-[#D4AF37]" : "border-[#3b1d6b]"}`}>시간 모름</button>
@@ -781,9 +887,30 @@ const handlePremiumClick = async () => {
             </div>
 
             {/* 분석 버튼 */}
-            <button onClick={handleAnalyze} className="w-full bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB] text-[#1a0b2e] text-lg font-bold py-4 rounded-xl mt-4 shadow-[0_0_20px_rgba(212,175,55,0.4)] hover:shadow-[0_0_30px_rgba(212,175,55,0.6)] transition-all flex items-center justify-center gap-2">
-              대한민국 1% 사주, 지금 확인 <ArrowRight size={20} />
-            </button>
+            <button 
+                  onClick={async () => {
+                    // 1. 로그인 여부부터 확인
+                    if (!user) {
+                      setShowGuestModal(true);
+                      return; // 로그인이 안 되어 있다면 여기서 멈춥니다.
+                    }
+
+                    // 2. 로그인된 경우에만 기존 로직 실행
+                    if (hasUsedDailyFree) {
+                      handleAnalyze();
+                    } else {
+                      await handleAnalyze();
+                      setHasUsedDailyFree(true);
+                    }
+                  }}
+                  className="w-full py-4 bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] font-extrabold rounded-2xl text-lg shadow-[0_0_20px_rgba(212,175,55,0.4)] transition-all hover:scale-[1.02] flex items-center justify-center gap-2"
+                >
+                  {hasUsedDailyFree ? (
+                    <>대한민국 1% 오늘의 사주 보기</>
+                  ) : (
+                    <>오늘의 사주 무료보기 ✨</>
+                  )}
+                </button>
           </div>
         </div>
       )}
@@ -798,7 +925,8 @@ const handlePremiumClick = async () => {
               <div className="absolute inset-3 border border-[#6b3eb0]/40 rounded-full animate-orbit" style={{ animationDirection: 'reverse', animationDuration: '15s' }}></div>
               <Compass size={36} className="text-[#D4AF37] animate-pulse" />
             </div>
-            <p className="text-[#D4AF37] text-sm tracking-wide animate-pulse px-4 leading-relaxed font-light">
+            {/* 👇 className 맨 끝에 whitespace-pre-wrap 만 추가되었습니다! 👇 */}
+            <p className="text-[#D4AF37] text-sm tracking-wide animate-pulse px-4 leading-relaxed font-light whitespace-pre-wrap">
               {loadingText}
             </p>
           </div>
@@ -905,7 +1033,146 @@ const handlePremiumClick = async () => {
                 <span className="text-[#D4AF37] font-bold flex items-center gap-1"><CheckCircle2 size={12}/> 출석 완료</span>
               </div>
             </div>
+{/* 📝 명식 확인/수정 아코디언 (접이식) */}
+<div className="bg-[#15072a]/80 border border-[#3b1d6b] rounded-2xl overflow-hidden shadow-lg mt-4">
+              {/* 토글 버튼 */}
+              <button
+                onClick={() => setShowResultForm(!showResultForm)}
+                className="w-full flex justify-between items-center p-4 hover:bg-[#1e0c3a] transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-base">📝</span>
+                  <span className="text-sm font-bold text-gray-200">내 사주 명식 확인 및 수정</span>
+                </div>
+                <span className="text-[#D4AF37] text-xs font-bold bg-[#D4AF37]/10 border border-[#D4AF37]/30 px-3 py-1.5 rounded-full transition-all">
+                  {showResultForm ? "접어두기 ▲" : "열어보기 ▼"}
+                </span>
+              </button>
 
+              {/* 열렸을 때 보이는 입력 폼 (메인 입력창과 동일하게 구성) */}
+              {showResultForm && (
+                <div className="p-6 border-t border-[#3b1d6b] bg-[#15072a]/90 space-y-6 animate-in slide-in-from-top-2">
+                  
+                  {/* ✨ 내 명식 자동 입력 버튼 */}
+                  {user && (
+                    <button 
+                      type="button"
+                      onClick={fetchMySavedInfo}
+                      className="w-full flex items-center justify-center gap-2 bg-[#1c0d33] border border-[#D4AF37]/60 text-[#D4AF37] px-4 py-3 rounded-xl text-sm font-bold hover:bg-[#D4AF37]/20 transition-all shadow-sm"
+                    >
+                      ✨ 내 사주 명식 자동 입력하기
+                    </button>
+                  )}
+
+                  {/* 성함 */}
+                  <div>
+                    <label className="block text-sm font-medium text-[#a48cd1] mb-2">성함</label>
+                    <input type="text" value={userInfo.name} onChange={(e) => setUserInfo({ ...userInfo, name: e.target.value })} className="w-full bg-[#0a0514] border border-[#3b1d6b] rounded-xl px-4 py-3 text-white text-sm focus:border-[#D4AF37] outline-none" />
+                  </div>
+
+                  {/* 성별 & 양음력 */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-[#a48cd1] mb-2">성별</label>
+                      <div className="flex bg-[#0a0514] p-1 rounded-xl border border-[#3b1d6b]">
+                        {["남자", "여자"].map(g => (
+                          <button key={g} onClick={() => setUserInfo({ ...userInfo, gender: g })} className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${userInfo.gender === g ? "bg-[#D4AF37] text-[#120524]" : "text-gray-400"}`}>{g}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-[#a48cd1] mb-2">양력/음력</label>
+                      <div className="flex bg-[#0a0514] p-1 rounded-xl border border-[#3b1d6b]">
+                        {["양력", "음력"].map(c => (
+                          <button key={c} onClick={() => setUserInfo({ ...userInfo, calendarType: c })} className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${userInfo.calendarType === c ? "bg-[#D4AF37] text-[#120524]" : "text-gray-400"}`}>{c}</button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 생년월일 */}
+                  <div>
+                    <label className="block text-sm font-medium text-[#a48cd1] mb-2">생년월일(6자리)</label>
+                    <input type="number" value={userInfo.birth} onChange={(e) => setUserInfo({ ...userInfo, birth: e.target.value })} className="w-full bg-[#0a0514] border border-[#3b1d6b] rounded-xl px-4 py-3 text-white text-sm focus:border-[#D4AF37] outline-none" />
+                  </div>
+
+                  {/* 태어난 시간 */}
+                  <div>
+                    <label className="block text-sm font-medium text-[#a48cd1] mb-2">태어난 시간</label>
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <button onClick={() => setUserInfo({ ...userInfo, isTimeKnown: false })} className={`py-3 rounded-xl text-sm font-bold border transition-all ${!userInfo.isTimeKnown ? "bg-[#D4AF37]/20 border-[#D4AF37] text-[#F3E5AB]" : "bg-[#0a0514] border-[#3b1d6b] text-gray-400"}`}>? 시간 모름</button>
+                      <button onClick={() => setUserInfo({ ...userInfo, isTimeKnown: true })} className={`py-3 rounded-xl text-sm font-bold border transition-all ${userInfo.isTimeKnown ? "bg-[#D4AF37]/20 border-[#D4AF37] text-[#F3E5AB]" : "bg-[#0a0514] border-[#3b1d6b] text-gray-400"}`}>🕒 시간 입력</button>
+                    </div>
+                    {userInfo.isTimeKnown && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <select value={userInfo.hour} onChange={(e) => setUserInfo({ ...userInfo, hour: e.target.value })} className="bg-[#0a0514] border border-[#3b1d6b] rounded-xl px-4 py-3 text-white text-sm outline-none">{Array.from({ length: 24 }, (_, i) => <option key={i} value={i}>{i}시</option>)}</select>
+                        <select value={userInfo.min} onChange={(e) => setUserInfo({ ...userInfo, min: e.target.value })} className="bg-[#0a0514] border border-[#3b1d6b] rounded-xl px-4 py-3 text-white text-sm outline-none">{Array.from({ length: 60 }, (_, i) => <option key={i} value={i}>{i}분</option>)}</select>
+                      </div>
+                    )}
+                  </div>
+                  {/* 💖 접이식 폼 내부 파트너 정보 */}
+                  <div className="mt-6 pt-6 border-t border-[#3b1d6b]">
+                    <div className="flex justify-between items-center mb-4">
+                      <label className="text-sm font-medium text-[#a48cd1]">❤️ 파트너/배우자 정보 (선택)</label>
+                      <button 
+                        type="button"
+                        onClick={fetchPartnerSavedInfo}
+                        className="text-xs bg-[#1c0d33] border border-[#a48cd1]/50 text-[#a48cd1] px-3 py-1.5 rounded-lg hover:bg-[#2a144a]"
+                      >
+                        ✨ 자동 불러오기
+                      </button>
+                    </div>
+
+                    <div className="space-y-4">
+                      <input 
+                        type="text" 
+                        placeholder="파트너 성함" 
+                        value={partnerInfo.name} 
+                        onChange={(e) => setPartnerInfo({...partnerInfo, name: e.target.value})}
+                        className="w-full bg-[#0a0514] border border-[#3b1d6b] rounded-xl px-4 py-3 text-white text-sm" 
+                      />
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="flex bg-[#0a0514] p-1 rounded-xl border border-[#3b1d6b]">
+                          {["남자", "여자"].map(g => (
+                            <button key={g} onClick={() => setPartnerInfo({...partnerInfo, gender: g})} className={`flex-1 py-2.5 rounded-lg text-sm font-bold ${partnerInfo.gender === g ? "bg-[#D4AF37] text-[#120524]" : "text-gray-400"}`}>{g}</button>
+                          ))}
+                        </div>
+                        <input 
+                          type="number" 
+                          placeholder="생년월일(6자리)" 
+                          value={partnerInfo.birth} 
+                          onChange={(e) => setPartnerInfo({...partnerInfo, birth: e.target.value})}
+                          className="w-full bg-[#0a0514] border border-[#3b1d6b] rounded-xl px-4 py-3 text-white text-sm" 
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <button onClick={() => setPartnerInfo({...partnerInfo, isTimeKnown: false})} className={`py-3 rounded-xl text-sm font-bold border ${!partnerInfo.isTimeKnown ? "bg-[#D4AF37]/20 border-[#D4AF37] text-[#F3E5AB]" : "bg-[#0a0514] border-[#3b1d6b] text-gray-400"}`}>? 시간 모름</button>
+                        <button onClick={() => setPartnerInfo({...partnerInfo, isTimeKnown: true})} className={`py-3 rounded-xl text-sm font-bold border ${partnerInfo.isTimeKnown ? "bg-[#D4AF37]/20 border-[#D4AF37] text-[#F3E5AB]" : "bg-[#0a0514] border-[#3b1d6b] text-gray-400"}`}>🕒 시간 입력</button>
+                      </div>
+                      
+                      {partnerInfo.isTimeKnown && (
+                        <div className="grid grid-cols-2 gap-3">
+                          <select value={partnerInfo.hour} onChange={(e) => setPartnerInfo({...partnerInfo, hour: e.target.value})} className="bg-[#0a0514] border border-[#3b1d6b] rounded-xl px-4 py-3 text-white text-sm">{Array.from({ length: 24 }, (_, i) => <option key={i} value={i}>{i}시</option>)}</select>
+                          <select value={partnerInfo.min} onChange={(e) => setPartnerInfo({...partnerInfo, min: e.target.value})} className="bg-[#0a0514] border border-[#3b1d6b] rounded-xl px-4 py-3 text-white text-sm">{Array.from({ length: 60 }, (_, i) => <option key={i} value={i}>{i}분</option>)}</select>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {/* 수정 완료 버튼 */}
+                  <button 
+                    onClick={() => {
+                      setShowResultForm(false);
+                      alert("✅ 명식 정보가 수정되었습니다.\n원하시는 운세를 다시 선택하시면 수정된 정보로 분석됩니다!");
+                    }} 
+                    className="w-full mt-4 py-4 bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] rounded-xl text-sm font-bold hover:shadow-[0_0_15px_rgba(212,175,55,0.3)] transition-all"
+                  >
+                    수정 완료 및 접기
+                  </button>
+                </div>
+              )}
+            </div>
             {/* 👇 1. 여기서 기존 결과창 뚜껑을 닫아줍니다 (제일 중요한 부분!) */}
           </div>
         )}
@@ -990,49 +1257,103 @@ const handlePremiumClick = async () => {
 
       </div>
 
-      {/* 💳 [모달] 포인트 충전소 (무통장 입금 MVP) */}
+      {/* 💳 [모달] 로벅스 스타일 포인트 상점 (무통장 입금 연동 완료) */}
       {showChargeModal && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[100] flex items-center justify-center p-5 animate-in fade-in">
-          <div className="bg-[#120524] border border-[#D4AF37]/50 w-full max-w-sm rounded-3xl p-6 shadow-2xl relative">
-            <h3 className="text-xl font-bold text-white text-center mb-1">포인트 충전소</h3>
-            <p className="text-xs text-[#a48cd1] text-center mb-5">계좌이체 확인 후 1~3분 내 즉시 충전됩니다.</p>
+          <div className="bg-[#120524] border border-[#D4AF37]/50 w-full max-w-sm rounded-3xl p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-bold text-white text-center mb-1">🪙 포인트 상점</h3>
+            <p className="text-xs text-[#a48cd1] text-center mb-5">원하시는 패키지를 선택해 주세요.</p>
             
-            <div className="space-y-2.5 mb-5">
+            {/* 패키지 리스트 */}
+            <div className="space-y-2 mb-6">
               {[
-                { won: "5,000원", pt: 5000, label: "기본 충전" },
-                { won: "10,000원", pt: 12000, label: "+2,000P 보너스!", bonus: true },
-              ].map((m, idx) => (
-                <div key={idx} 
-                  onClick={() => setPoints(prev => prev + m.pt)}
+                { price: 3000, paid: 300, bonus: 0, label: "기본 사주 1회", id: 1 },
+                { price: 5000, paid: 500, bonus: 0, label: "기본+꼬리질문", id: 2 },
+                { price: 10000, paid: 1000, bonus: 200, label: "+200P 보너스", id: 3 },
+                { price: 30000, paid: 3000, bonus: 500, label: "+500P 넉넉하게!", id: 4 },
+                { price: 50000, paid: 5000, bonus: 1000, label: "+1,000P 파격 혜택", id: 5 },
+                { price: 89000, paid: 8900, bonus: 2600, label: "VIP 끝판왕 혜택", id: 6 },
+              ].map((pkg) => (
+                <div 
+                  key={pkg.id} 
+                  onClick={() => setSelectedPackage(pkg)}
                   className={`p-3.5 rounded-2xl border flex justify-between items-center cursor-pointer transition-all ${
-                    m.bonus ? "border-[#D4AF37] bg-[#D4AF37]/10" : "border-[#3b1d6b] bg-[#0a0514]"
+                    selectedPackage?.id === pkg.id 
+                      ? "border-[#D4AF37] bg-[#D4AF37]/20 shadow-[0_0_10px_rgba(212,175,55,0.3)]" 
+                      : pkg.bonus > 0 
+                        ? "border-[#44237d] bg-[#1a0b2e] hover:border-[#D4AF37]/50" 
+                        : "border-[#3b1d6b] bg-[#0a0514] hover:border-[#D4AF37]/50"
                   }`}
                 >
-                  <span className="text-sm font-medium text-white">{m.won} 입금</span>
+                  <span className="text-sm font-medium text-white">{pkg.price.toLocaleString()}원</span>
                   <div className="text-right">
-                    <span className="text-base font-bold text-[#D4AF37] block">{m.pt.toLocaleString()} P</span>
-                    <span className="text-[10px] text-[#F3E5AB]">{m.label}</span>
+                    <span className="text-base font-bold text-[#D4AF37] block">{(pkg.paid + pkg.bonus).toLocaleString()} P</span>
+                    <span className="text-[10px] text-[#F3E5AB]">{pkg.label}</span>
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="bg-[#0a0514] rounded-xl p-4 mb-6 border border-[#3b1d6b] text-center">
-              <p className="text-[11px] text-[#a48cd1] mb-1">무통장 입금 계좌</p>
-              <p className="text-sm font-mono font-bold text-[#D4AF37] tracking-wider">국민은행 123456-00-123456</p>
-              <p className="text-[11px] text-gray-500 mt-0.5">예금주: 플럭스 미디어</p>
-            </div>
+            {/* 입금자명 입력 및 계좌 안내 (패키지를 선택했을 때만 보임) */}
+            {selectedPackage && (
+              <div className="animate-in slide-in-from-top-2">
+                <div className="mb-4">
+                  <input 
+                    type="text" 
+                    placeholder="입금하시는 분 성함 (예: 홍길동)" 
+                    value={depositorName}
+                    onChange={(e) => setDepositorName(e.target.value)}
+                    className="w-full bg-[#0a0514] border border-[#D4AF37]/50 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-[#D4AF37]"
+                  />
+                </div>
+                <div className="bg-[#0a0514] rounded-xl p-4 mb-5 border border-[#3b1d6b] text-center">
+                  <p className="text-[11px] text-[#a48cd1] mb-1">아래 계좌로 <strong className="text-white">{selectedPackage.price.toLocaleString()}원</strong>을 입금해 주세요</p>
+                  <p className="text-sm font-mono font-bold text-[#D4AF37] tracking-wider">국민은행 123456-00-123456</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">예금주: 플럭스미디어</p>
+                </div>
+              </div>
+            )}
 
-            <div className="flex gap-2">
-              <button onClick={() => setShowChargeModal(false)} className="flex-1 py-3 bg-[#1c0d33] text-[#a48cd1] rounded-xl text-xs font-bold">
+            {/* 하단 버튼 */}
+            <div className="flex gap-2 mt-4">
+              <button 
+                onClick={() => { setShowChargeModal(false); setSelectedPackage(null); setDepositorName(""); }} 
+                className="flex-1 py-3 bg-[#1c0d33] text-[#a48cd1] rounded-xl text-xs font-bold"
+              >
                 닫기
               </button>
               <button 
-                onClick={() => {
-                  alert("✅ 입금 알림이 접수되었습니다!\n(관리자 확인 후 즉시 포인트가 지급됩니다.)");
-                  setShowChargeModal(false);
+                onClick={async () => {
+                  if (!selectedPackage) return alert("충전할 패키지를 선택해 주세요!");
+                  if (!depositorName.trim()) return alert("입금자명을 입력해 주세요!");
+                  if (!user) return alert("로그인 정보가 없습니다. 다시 로그인해 주세요.");
+
+                  // 🌟 Supabase DB에 신청 내역 쏘기!
+                  const { error } = await supabase.from('deposit_requests').insert({
+                    user_id: user.id,
+                    user_email: user.email || user.user_metadata?.email || "이메일 없음",
+                    depositor_name: depositorName,
+                    amount_krw: selectedPackage.price,
+                    paid_points: selectedPackage.paid,
+                    bonus_points: selectedPackage.bonus
+                  });
+
+                  if (error) {
+                    console.error("신청 에러:", error);
+                    alert("신청 중 오류가 발생했습니다. 다시 시도해 주세요.");
+                  } else {
+                    alert("✅ 입금 알림이 접수되었습니다!\n관리자 확인 후 1~3분 내로 포인트가 지급됩니다.");
+                    setShowChargeModal(false);
+                    setSelectedPackage(null);
+                    setDepositorName("");
+                  }
                 }} 
-                className="flex-[2] py-3 bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] rounded-xl text-xs font-extrabold shadow-lg"
+                className={`flex-[2] py-3 rounded-xl text-xs font-extrabold shadow-lg transition-all ${
+                  selectedPackage && depositorName 
+                    ? "bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524]" 
+                    : "bg-gray-700 text-gray-400 cursor-not-allowed"
+                }`}
+                disabled={!selectedPackage || !depositorName}
               >
                 입금 완료했어요
               </button>
@@ -1042,6 +1363,8 @@ const handlePremiumClick = async () => {
       )}
      
       {/* ---------------------------------------------------- */}
+      {/* ---------------------------------------------------- */}
+      {/* 🎁 [모달] 비회원 로그인 유도 (1회권 삭제, 무조건 가입 유도) */}
       {showGuestModal && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[100] flex items-center justify-center p-5 animate-in fade-in">
           <div className="bg-[#120524] border border-[#D4AF37]/50 w-full max-w-sm rounded-3xl p-6 shadow-2xl relative">
@@ -1051,19 +1374,33 @@ const handlePremiumClick = async () => {
               </div>
               <h3 className="text-xl font-bold text-white mb-2">프리미엄 운세 잠금 해제</h3>
               <p className="text-sm text-[#a48cd1] leading-relaxed">
-                3초 만에 가입하면 심층 분석용<br/>
-                <span className="text-[#D4AF37] font-bold text-base">1,000 포인트</span>를 즉시 드립니다!
+                3초 만에 로그인하고 심층 분석용<br/>
+                <span className="text-[#D4AF37] font-bold text-base">1,000 포인트</span>를 즉시 받아보세요!
               </p>
             </div>
             
             <div className="space-y-3">
-              {/* 1번 버튼: 구글 로그인 연동 */}
+              {/* 1번 버튼: 카카오 로그인 연동 */}
               <button 
                 onClick={() => {
-                  setShowGuestModal(false); // 모달 닫고
-                  handleGoogleLogin();      // 로그인 실행!
+                  setShowGuestModal(false); 
+                  handleKakaoLogin();      
                 }}
-                className="w-full py-4 bg-white text-[#1a0b2e] rounded-xl font-extrabold text-sm flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(255,255,255,0.2)] transition-all hover:bg-gray-100"
+                className="w-full flex items-center justify-center gap-3 bg-[#FEE500] hover:bg-[#F4DC00] text-[#000000] text-sm font-bold py-4 rounded-xl transition-all shadow-[0_0_15px_rgba(254,229,0,0.15)]"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 3C6.477 3 2 6.425 2 10.648c0 2.706 1.706 5.07 4.3 6.355-.26.965-1.01 3.76-1.04 3.882-.04.144.05.155.12.11 1.05-.67 4.12-2.82 4.12-2.82.82.16 1.66.25 2.5.25 5.523 0 10-3.425 10-7.648C22 6.425 17.523 3 12 3z" fill="#000000"/>
+                </svg>
+                카카오로 1초 만에 시작하기
+              </button>
+
+              {/* 2번 버튼: 구글 로그인 연동 */}
+              <button 
+                onClick={() => {
+                  setShowGuestModal(false); 
+                  handleGoogleLogin();      
+                }}
+                className="w-full py-4 bg-white text-[#1a0b2e] rounded-xl font-extrabold text-sm flex items-center justify-center gap-3 shadow-[0_0_15px_rgba(255,255,255,0.2)] transition-all hover:bg-gray-100"
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -1072,17 +1409,6 @@ const handlePremiumClick = async () => {
                   <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                 </svg>
                 구글로 1초 만에 시작하기
-              </button>
-              
-              {/* 2번 버튼: 기존 계좌이체 모달로 자연스럽게 토스! */}
-              <button 
-                onClick={() => {
-                  setShowGuestModal(false);  // 이 모달은 닫고
-                  setShowChargeModal(true);  // 기존 충전소(계좌이체) 모달을 연다!
-                }}
-                className="w-full py-4 bg-[#1c0d33] border border-[#3b1d6b] text-gray-300 rounded-xl font-bold text-sm hover:border-[#D4AF37]/50 transition-all"
-              >
-                가입 없이 1회권(계좌이체) 이용하기
               </button>
             </div>
 
