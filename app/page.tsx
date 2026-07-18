@@ -599,15 +599,18 @@ const handlePremiumClick = async () => {
               <span className="text-[15px] md:text-base">🗂️</span>
             </button>
 
-            {/* 포인트 및 충전 버튼 */}
-            <button 
-              onClick={() => setShowChargeModal(true)}
-              className="flex items-center gap-1.5 md:gap-2 bg-[#1c0d33] border border-[#D4AF37]/40 px-3 py-1.5 rounded-full hover:bg-[#D4AF37]/10 transition-all shadow-[0_0_10px_rgba(212,175,55,0.15)]"
-            >
-              <Wallet size={14} className="text-[#D4AF37]" />
-              <span className="text-xs md:text-sm font-bold text-[#D4AF37]">{points.toLocaleString()} P</span>
-              <span className="text-[9px] md:text-[10px] bg-[#D4AF37] text-black font-extrabold px-1.5 py-0.5 rounded-full hidden xs:inline-block">+ 충전</span>
-            </button>
+            {/* 🌟 눈에 확 띄는 포인트 및 충전 버튼 세트 */}
+            <div className="flex items-center bg-[#120524] border border-[#3b1d6b] rounded-full p-1 pl-3 shadow-[0_0_10px_rgba(212,175,55,0.15)]">
+              <span className="text-sm font-bold text-[#D4AF37] mr-3">
+                {points.toLocaleString()} <span className="text-xs font-normal">P</span>
+              </span>
+              <button
+                onClick={() => setShowChargeModal(true)}
+                className="bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] text-xs font-extrabold px-3 py-1.5 rounded-full hover:scale-105 transition-transform"
+              >
+                충전하기
+              </button>
+            </div>
           </div>
         )}
       </header>
@@ -1253,16 +1256,23 @@ const handlePremiumClick = async () => {
                       // 8메뉴 결제 대기열에 올림 (500P)
                       setPendingPayment({ type: "menu", cost: 500, title: item.title, payload: item });
                     }}
-                    // 👇 모바일 여백(p-3.5) 조정 및 높이 정렬
-                    className="p-3.5 sm:p-4 bg-[#15072a]/50 border border-[#3b1d6b] rounded-2xl hover:bg-[#1e0c3a] hover:border-[#D4AF37] transition-all text-left group shadow-lg flex flex-col justify-start"
+                    // 👇 변경점 1: className 맨 끝에 'relative'를 추가했습니다! (우측 상단 뱃지 고정용)
+                    className="p-3.5 sm:p-4 bg-[#15072a]/50 border border-[#3b1d6b] rounded-2xl hover:bg-[#1e0c3a] hover:border-[#D4AF37] transition-all text-left group shadow-lg flex flex-col justify-start relative"
                   >
-                    <div className="text-2xl mb-2 sm:mb-2.5">{item.icon}</div>
-                    {/* 👇 break-keep 추가: "월별 풀이"가 "월별" / "풀이" 로 예쁘게 떨어짐 */}
-                    <div className="font-bold text-white group-hover:text-[#D4AF37] text-[13px] sm:text-sm md:text-base break-keep leading-snug">
+                    {/* 👇 변경점 2: 새로 추가된 '500 P' 가격표 뱃지 👇 */}
+                    <div className="absolute top-2 right-2 bg-[#1c0d33] border border-[#D4AF37]/50 px-2 py-0.5 rounded-md shadow-sm z-10">
+                      <span className="text-[10px] font-bold text-[#D4AF37]">
+                        500 P
+                      </span>
+                    </div>
+
+                    <div className="text-2xl mb-2 sm:mb-2.5 relative z-10">{item.icon}</div>
+                    {/* break-keep 추가: "월별 풀이"가 "월별" / "풀이" 로 예쁘게 떨어짐 */}
+                    <div className="font-bold text-white group-hover:text-[#D4AF37] text-[13px] sm:text-sm md:text-base break-keep leading-snug relative z-10">
                       {item.title}
                     </div>
-                    {/* 👇 서브 텍스트도 단어 단위로 줄바꿈되도록 최적화 */}
-                    <div className="text-[10px] sm:text-[11px] md:text-xs text-[#a48cd1] mt-1 sm:mt-1.5 break-keep leading-tight">
+                    {/* 서브 텍스트도 단어 단위로 줄바꿈되도록 최적화 */}
+                    <div className="text-[10px] sm:text-[11px] md:text-xs text-[#a48cd1] mt-1 sm:mt-1.5 break-keep leading-tight relative z-10">
                       {item.desc}
                     </div>
                   </button>
