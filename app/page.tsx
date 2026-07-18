@@ -58,6 +58,7 @@ const [showGuestModal, setShowGuestModal] = useState(false);
   const [depositorName, setDepositorName] = useState("");
   // (기존 코드) 꼬리질문 상태 아래나 편한 곳에 추가해 주세요!
   const [showResultForm, setShowResultForm] = useState(false); // 👈 결과창 접이식 폼 스위치
+  const [isAgreed, setIsAgreed] = useState(false);
   // 🪄 내 사주 명식 자동 불러오기
   const fetchMySavedInfo = async () => {
     if (!user) return alert("로그인 후 이용 가능합니다!");
@@ -885,10 +886,26 @@ const handlePremiumClick = async () => {
   </div>
 )}
             </div>
-
+             {/* 개인정보 동의 체크박스 */}
+            <div className="flex items-center gap-2 mb-4 px-1">
+              <input 
+                type="checkbox" 
+                id="agree" 
+                checked={isAgreed}
+                onChange={(e) => setIsAgreed(e.target.checked)}
+                className="w-4 h-4 accent-[#D4AF37]"
+              />
+              <label htmlFor="agree" className="text-xs text-gray-300 cursor-pointer">
+                (필수) 개인정보 수집 및 이용에 동의합니다.
+              </label>
+            </div>
             {/* 분석 버튼 */}
             <button 
                   onClick={async () => {
+                    // 0. 개인정보 동의 여부 먼저 확인
+                    if (!isAgreed) {
+                      return alert("서비스 이용을 위해 개인정보 수집 및 이용에 동의해 주세요.");
+                    }
                     // 1. 로그인 여부부터 확인
                     if (!user) {
                       setShowGuestModal(true);
