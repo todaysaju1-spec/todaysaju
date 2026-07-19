@@ -27,6 +27,12 @@ export default function AdminDashboard() {
   const [requests, setRequests] = useState<any[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
 
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [userCharges, setUserCharges] = useState<any[]>([]);
+  const [userSajus, setUserSajus] = useState<any[]>([]);
+  const [isUserDetailLoading, setIsUserDetailLoading] = useState(false);
+  const [detailTab, setDetailTab] = useState<"charges" | "sajus">("charges");
+
   useEffect(() => {
     const stored = localStorage.getItem(ADMIN_PASSWORD_KEY);
     if (!stored) {
@@ -137,6 +143,43 @@ export default function AdminDashboard() {
     if (error) console.error("입금 내역 에러:", error);
     else setRequests(data || []);
     setLoadingRequests(false);
+  };
+
+  const handleUserClick = async (user: any) => {
+    setSelectedUser(user);
+    setDetailTab("charges");
+    setUserCharges([]);
+    setUserSajus([]);
+    setIsUserDetailLoading(true);
+
+    const [chargesResult, sajusResult] = await Promise.all([
+      supabase
+        .from("deposit_requests")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("saju_history")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false }),
+    ]);
+
+    if (chargesResult.error) console.error("충전 내역 조회 에러:", chargesResult.error);
+    else setUserCharges(chargesResult.data || []);
+
+    if (sajusResult.error) console.error("사주 내역 조회 에러:", sajusResult.error);
+    else setUserSajus(sajusResult.data || []);
+
+    setIsUserDetailLoading(false);
+  };
+
+  const handleCloseUserDetailModal = () => {
+    setSelectedUser(null);
+    setUserCharges([]);
+    setUserSajus([]);
+    setDetailTab("charges");
+    setIsUserDetailLoading(false);
   };
 
   const handleApprove = async (request: any) => {
@@ -375,7 +418,13 @@ export default function AdminDashboard() {
                     users.map((u) => (
                       <tr key={u.id} className="border-b border-[#3b1d6b]/50 hover:bg-[#1e0c3a] transition-colors">
                         <td className="p-4">
-                          <div className="font-bold text-white">{u.display_name || "미입력"}</div>
+                          <button
+                            type="button"
+                            onClick={() => handleUserClick(u)}
+                            className="font-bold text-white hover:text-[#D4AF37] hover:underline underline-offset-2 transition-colors text-left cursor-pointer"
+                          >
+                            {u.display_name || "미입력"}
+                          </button>
                           <div className="text-[10px] text-gray-500 font-mono mt-0.5" title={u.id}>
                             {u.email || `ID: ${u.id.slice(0, 8)}...`}
                           </div>
@@ -405,6 +454,145 @@ export default function AdminDashboard() {
           </div>
         )}
       </div>
+
+      {/* 회원 상세 정보 모달 */}
+      {selectedUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-5">
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={handleCloseUserDetailModal}
+          />
+          <div className="relative w-full max-w-3xl max-h-[85vh] bg-[#15072a] border border-[#3b1d6b] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+            <div className="flex justify-between items-center p-6 border-b border-[#3b1d6b] shrink-0">
+              <h2 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB]">
+                [{selectedUser.display_name || "미입력"}]님의 상세 정보
+              </h2>
+              <button
+                onClick={handleCloseUserDetailModal}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="px-6 pt-4 pb-2 border-b border-[#3b1d6b] shrink-0">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setDetailTab("charges")}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-t-lg font-bold text-sm transition-all ${
+                    detailTab === "charges"
+                      ? "bg-[#1c0d33] border-t border-l border-r border-[#D4AF37] text-[#D4AF37]"
+                      : "bg-transparent text-gray-400 hover:text-white"
+                  }`}
+                >
+                  <CreditCard size={16} /> 충전 내역
+                  {!isUserDetailLoading && (
+                    <span className="text-xs bg-[#D4AF37]/20 text-[#D4AF37] px-2 py-0.5 rounded-full">
+                      {userCharges.length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setDetailTab("sajus")}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-t-lg font-bold text-sm transition-all ${
+                    detailTab === "sajus"
+                      ? "bg-[#1c0d33] border-t border-l border-r border-[#D4AF37] text-[#D4AF37]"
+                      : "bg-transparent text-gray-400 hover:text-white"
+                  }`}
+                >
+                  <Wallet size={16} /> 사주 내역
+                  {!isUserDetailLoading && (
+                    <span className="text-xs bg-[#D4AF37]/20 text-[#D4AF37] px-2 py-0.5 rounded-full">
+                      {userSajus.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              {isUserDetailLoading ? (
+                <div className="py-12 text-center text-gray-400 animate-pulse">
+                  데이터를 불러오는 중입니다...
+                </div>
+              ) : detailTab === "charges" ? (
+                userCharges.length === 0 ? (
+                  <div className="py-12 text-center text-gray-400">충전 내역이 없습니다.</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-[#1c0d33]/50 border-b border-[#3b1d6b]">
+                          <th className="p-3 text-sm text-[#a48cd1] font-medium">신청일시</th>
+                          <th className="p-3 text-sm text-[#a48cd1] font-medium">입금자명</th>
+                          <th className="p-3 text-sm text-[#a48cd1] font-medium">입금 금액</th>
+                          <th className="p-3 text-sm text-[#a48cd1] font-medium">지급 포인트</th>
+                          <th className="p-3 text-sm text-[#a48cd1] font-medium text-center">상태</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {userCharges.map((charge) => (
+                          <tr key={charge.id} className="border-b border-[#3b1d6b]/50 hover:bg-[#1e0c3a] transition-colors">
+                            <td className="p-3 text-xs text-gray-400">
+                              {new Date(charge.created_at).toLocaleString()}
+                            </td>
+                            <td className="p-3 text-sm text-white">{charge.depositor_name}</td>
+                            <td className="p-3 text-sm font-bold text-[#F3E5AB]">
+                              {charge.amount_krw.toLocaleString()}원
+                            </td>
+                            <td className="p-3 text-sm font-bold text-[#D4AF37]">
+                              {(charge.paid_points + charge.bonus_points).toLocaleString()} P
+                            </td>
+                            <td className="p-3 text-center">
+                              {charge.status === "completed" ? (
+                                <span className="inline-flex items-center gap-1 bg-green-900/30 text-green-400 border border-green-800/50 px-2 py-1 rounded-lg text-xs font-bold">
+                                  <CheckCircle2 size={12} /> 완료
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center bg-yellow-900/30 text-yellow-400 border border-yellow-800/50 px-2 py-1 rounded-lg text-xs font-bold">
+                                  대기중
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              ) : userSajus.length === 0 ? (
+                <div className="py-12 text-center text-gray-400">사주 내역이 없습니다.</div>
+              ) : (
+                <div className="space-y-3">
+                  {userSajus.map((saju) => (
+                    <div
+                      key={saju.id}
+                      className="bg-[#1c0d33]/50 border border-[#3b1d6b] rounded-xl p-4 hover:border-[#D4AF37]/30 transition-colors"
+                    >
+                      <div className="flex justify-between items-start gap-4 mb-2">
+                        <div>
+                          <span className="text-xs bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/30 px-2 py-0.5 rounded-full font-bold">
+                            {saju.type || "사주"}
+                          </span>
+                          <h3 className="font-bold text-white mt-2">{saju.title || "제목 없음"}</h3>
+                        </div>
+                        <span className="text-xs text-gray-400 shrink-0">
+                          {new Date(saju.created_at).toLocaleString()}
+                        </span>
+                      </div>
+                      {saju.content && (
+                        <p className="text-sm text-gray-300 line-clamp-3 whitespace-pre-wrap">
+                          {saju.content}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 비밀번호 변경 모달 */}
       {showPasswordModal && (

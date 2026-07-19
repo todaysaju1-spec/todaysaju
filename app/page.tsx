@@ -121,9 +121,21 @@ useEffect(() => {
       .select("points")
       .eq("id", userId)
       .single();
-    
+
     if (data && data.points !== undefined) {
       setPoints(data.points); // 내 진짜 잔고를 지갑(화면)에 업데이트!
+    }
+  };
+
+  // 💡 [새로 추가된 부분] 오늘 무료 사주를 봤는지 로컬 스토리지에서 확인하는 함수
+  const checkDailyFree = (userId: string) => {
+    const today = new Date().toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' });
+    const lastUsed = localStorage.getItem(`free_saju_${userId}`);
+    
+    if (lastUsed === today) {
+      setHasUsedDailyFree(true); // 오늘 이미 봤으면 true
+    } else {
+      setHasUsedDailyFree(false); // 안 봤으면 false
     }
   };
 
@@ -132,6 +144,7 @@ useEffect(() => {
     setUser(session?.user || null);
     if (session?.user) {
       fetchMyPoints(session.user.id); // 로그인되어 있으면 잔고 확인
+      checkDailyFree(session.user.id); // 👈 [추가됨] 로그인 직후 상태 체크
     }
   });
 
@@ -140,8 +153,10 @@ useEffect(() => {
     setUser(session?.user || null);
     if (session?.user) {
       fetchMyPoints(session.user.id); // 로그인하면 잔고 확인
+      checkDailyFree(session.user.id); // 👈 [추가됨] 상태 변할 때 체크
     } else {
       setPoints(1000); // 로그아웃하면 다시 기본값으로
+      setHasUsedDailyFree(false); // 👈 [추가됨] 로그아웃하면 무료 이용 내역도 초기화
     }
   });
 
@@ -306,16 +321,26 @@ partner_is_time_known: showPartner ? partnerInfo.isTimeKnown : false
     if (response.ok) {
       const data = await response.json(); 
       const rawResult = data.result_text;
+      // ... (기존 @@@ 자르는 로직 그대로 유지) ...
       if (rawResult.includes("@@@")) {
         const [mainText, questionsPart] = rawResult.split("@@@");
         setSajuResultText(mainText.trim()); 
-        const dynamicQuestions = questionsPart.split("||").map(q => q.trim()).filter(q => q !== "").map(q => `✨ ${q}`); 
+        const dynamicQuestions = questionsPart.split("||").map((q: string) => q.trim()).filter((q: string) => q !== "").map((q: string) => `✨ ${q}`); 
         setSuggestedQuestions(dynamicQuestions);
       } else {
         setSajuResultText(rawResult);
       }
+
       setStep("result");
       setHasUsedDailyFree(true);
+      
+      // 💡 [추가] 브라우저에 오늘 날짜 도장 꽝!
+      const today = new Date().toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' });
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        localStorage.setItem(`free_saju_${session.user.id}`, today);
+      }
+
       saveSajuHistory("free", "오늘의 무료 사주", data.result_text);
     } else {
       alert("운세 서버 통신이 지연되고 있습니다. 다시 시도해주세요.");
@@ -595,10 +620,10 @@ const handlePremiumClick = async () => {
             
             <button 
               onClick={fetchMyHistory}
-              className="flex items-center justify-center bg-[#1c0d33] border border-[#a48cd1]/50 w-8 h-8 md:w-9 md:h-9 rounded-full hover:bg-[#D4AF37]/20 hover:border-[#D4AF37] transition-all shadow-[0_0_10px_rgba(212,175,55,0.1)]"
-              title="내 운세 보관함"
+              className="flex items-center justify-center gap-1.5 bg-[#1c0d33] border border-[#a48cd1]/50 px-3 py-1.5 rounded-full hover:bg-[#D4AF37]/20 hover:border-[#D4AF37] transition-all shadow-[0_0_10px_rgba(212,175,55,0.1)] group"
             >
-              <span className="text-[15px] md:text-base">🗂️</span>
+              <span className="text-sm">🗂️</span>
+              <span className="text-xs md:text-sm font-bold text-gray-200 group-hover:text-[#D4AF37] transition-colors">사주 보관함</span>
             </button>
 
             {/* 🌟 눈에 확 띄는 포인트 및 충전 버튼 세트 */}
@@ -904,25 +929,25 @@ const handlePremiumClick = async () => {
                 (필수) 개인정보 수집 및 이용에 동의합니다.
               </label>
             </div>
+            
             {/* 분석 버튼 */}
             <button 
                   onClick={async () => {
-                    // 0. 개인정보 동의 여부 먼저 확인
                     if (!isAgreed) {
                       return alert("서비스 이용을 위해 개인정보 수집 및 이용에 동의해 주세요.");
                     }
-                    // 1. 로그인 여부부터 확인
                     if (!user) {
                       setShowGuestModal(true);
-                      return; // 로그인이 안 되어 있다면 여기서 멈춥니다.
+                      return; 
                     }
 
-                    // 2. 로그인된 경우에만 기존 로직 실행
+                    // 💡 [수정] 이미 오늘 무료 사주를 봤다면, 재분석(비용발생)을 막고 보관함을 엽니다!
                     if (hasUsedDailyFree) {
-                      handleAnalyze();
+                      alert("오늘의 무료 운세는 이미 발급되었습니다.\n보관함에서 다시 확인해 주세요!");
+                      fetchMyHistory(); // 보관함 모달창 오픈
+                      return; 
                     } else {
                       await handleAnalyze();
-                      setHasUsedDailyFree(true);
                     }
                   }}
                   className="w-full py-4 bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] font-extrabold rounded-2xl text-lg shadow-[0_0_20px_rgba(212,175,55,0.4)] transition-all hover:scale-[1.02] flex items-center justify-center gap-2"
@@ -1566,7 +1591,7 @@ const handlePremiumClick = async () => {
             {/* 헤더 */}
             <div className="p-5 border-b border-[#3b1d6b] flex justify-between items-center bg-[#0a0514]">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                🗂️ 내 운세 보관함
+                🗂️ 사주 보관함
               </h3>
               <button 
                 onClick={() => { setShowHistoryModal(false); setSelectedHistory(null); }} 
