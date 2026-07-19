@@ -931,27 +931,6 @@ const handlePremiumClick = async () => {
             </div>
             
             {/* 분석 버튼 */}
-            <button 
-                  onClick={async () => {
-                    if (!isAgreed) {
-                      return alert("서비스 이용을 위해 개인정보 수집 및 이용에 동의해 주세요.");
-                    }
-                    if (!user) {
-                      setShowGuestModal(true);
-                      return; 
-                    }
-
-                    // 💡 [수정] 이미 오늘 무료 사주를 봤다면, 재분석(비용발생)을 막고 보관함을 엽니다!
-                    if (hasUsedDailyFree) {
-                      alert("오늘의 무료 운세는 이미 발급되었습니다.\n보관함에서 다시 확인해 주세요!");
-                      fetchMyHistory(); // 보관함 모달창 오픈
-                      return; 
-                    } else {
-                      await handleAnalyze();
-                    }
-                  }}
-                  className="w-full py-4 bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] font-extrabold rounded-2xl text-lg shadow-[0_0_20px_rgba(212,175,55,0.4)] transition-all hover:scale-[1.02] flex items-center justify-center gap-2"
-                >
                   {hasUsedDailyFree ? (
                     <>대한민국 1% 오늘의 사주 보기</>
                   ) : (
@@ -1573,6 +1552,8 @@ const handlePremiumClick = async () => {
                     handleMenuClick(action.payload.title, action.payload.title, action.payload.desc);
                   } else if (action.type === "followup") {
                     handleFollowUp(action.payload);
+                  } else if (action.type === "other_saju") {
+                    handleAnalyze(); // 👈 타인 사주 결제 완료 시 분석 시작!
                   }
                 }} 
                 className="flex-[2] py-3 bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] rounded-xl font-bold text-sm shadow-[0_0_15px_rgba(212,175,55,0.3)] hover:brightness-110 transition-all"
