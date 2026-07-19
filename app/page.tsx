@@ -1312,8 +1312,8 @@ const handlePremiumClick = async () => {
                   <div className="flex items-center gap-3 relative z-30">
                     <div className="text-3xl">👑</div>
                     <div>
-                      <div className="text-white font-bold text-lg">프리미엄 인생 마스터플랜</div>
-                      <div className="text-[#a48cd1] text-xs mt-1">인생 총평 + 재물/직업 + 연애/가족 + 건강/행운 (4,000자 정밀 분석)</div>
+                      <div className="text-white font-bold text-lg">프리미엄 총 사주운세</div>
+                      <div className="text-[#a48cd1] text-xs mt-1">인생 총평 + 재물/직업 + 연애/가족 + 건강/행운 프리미엄 정밀 분석</div>
                     </div>
                   </div>
                 </button>
