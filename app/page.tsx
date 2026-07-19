@@ -551,7 +551,9 @@ const handlePremiumClick = async () => {
         name: userInfo.name,
         sajuData: llmFriendlyData,
         maritalStatus: userInfo.maritalStatus,
+        hasChildren: userInfo.hasChildren,
         partnerData: showPartner ? partnerInfo : null 
+        partnerSajuData: partnerLlmFriendlyData
       }),
     });
 
@@ -995,6 +997,18 @@ const handlePremiumClick = async () => {
             <p className="text-[#D4AF37] text-sm tracking-wide animate-pulse px-4 leading-relaxed font-light whitespace-pre-wrap">
               {loadingText}
             </p>
+            {/* 🌟 새로 추가한 버튼 */}
+            <button 
+              onClick={() => {
+                alert("분석이 진행 중입니다.\n완료되면 '사주 보관함'에서 바로 확인하실 수 있어요!");
+                setStep("result"); // 로딩 화면에서 바로 메인 결과 화면으로 전환
+              }}
+              className="mt-6 px-6 py-2.5 text-xs text-[#a48cd1] border border-[#a48cd1]/50 rounded-full hover:bg-[#a48cd1]/10 hover:text-white transition-all"
+            >
+              사주 보관함에서 나중에 결과보기 ✨
+            </button>
+          </div>
+        )}
           </div>
         )}
 
