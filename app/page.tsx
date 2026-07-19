@@ -931,12 +931,52 @@ const handlePremiumClick = async () => {
             </div>
             
             {/* 분석 버튼 */}
-                  {hasUsedDailyFree ? (
-                    <>대한민국 1% 오늘의 사주 보기</>
-                  ) : (
-                    <>오늘의 사주 무료보기 ✨</>
-                  )}
-                </button>
+            <button 
+              onClick={async () => {
+                if (!isAgreed) {
+                  return alert("서비스 이용을 위해 개인정보 수집 및 이용에 동의해 주세요.");
+                }
+                if (!user) {
+                  setShowGuestModal(true);
+                  return; 
+                }
+
+                // 타인 사주 보기 수익화 로직 적용
+                if (hasUsedDailyFree) {
+                  // 1. DB에 저장된 내 진짜 정보 가져오기
+                  const { data } = await supabase.from('user_profiles').select('display_name, birth_date').eq('id', user.id).single();
+                  
+                  // 2. 지금 입력창에 있는 정보와 내 DB 정보가 똑같은지 비교
+                  const isMyInfo = data && data.display_name === userInfo.name && data.birth_date === userInfo.birth;
+
+                  if (isMyInfo) {
+                    // 내 정보 그대로 다시 누른 경우 -> 보관함으로 안내 (API 비용 방어)
+                    alert("오늘의 무료 운세는 이미 발급되었습니다.\n보관함에서 다시 확인해 주세요!");
+                    fetchMyHistory();
+                    return;
+                  } else {
+                    // 이름이나 생일이 바뀐 경우 (타인 사주) -> 300P 결제 장바구니에 담기!
+                    setPendingPayment({ 
+                      type: "other_saju", 
+                      cost: 300, 
+                      title: `[${userInfo.name}]님의 일일 운세`, 
+                      payload: null 
+                    });
+                    return;
+                  }
+                } else {
+                  // 아직 오늘 무료 사주를 안 본 경우 -> 정상 실행
+                  await handleAnalyze();
+                }
+              }}
+              className="w-full py-4 bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] font-extrabold rounded-2xl text-lg shadow-[0_0_20px_rgba(212,175,55,0.4)] transition-all hover:scale-[1.02] flex items-center justify-center gap-2"
+            >
+              {hasUsedDailyFree ? (
+                <>오늘의 운세 다시보기 ✨</>
+              ) : (
+                <>오늘의 사주 무료보기 ✨</>
+              )}
+            </button>
           </div>
         </div>
       )}
