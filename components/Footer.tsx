@@ -39,6 +39,17 @@ export default function Footer() {
               <p><strong>통신판매업신고:</strong> 2026-부천소사-0565</p>
               <p><strong>사업장:</strong> 경기도 부천시 소사구 소사로 257, 6층 C59호(태한빌딩)</p>
               <p><strong>고객센터:</strong> 010-7979-3621 | <strong>이메일:</strong> todaysaju1@gmail.com</p>
+              <p className="mt-2">
+  <a 
+    href="http://pf.kakao.com/_MbvfX/chat" 
+    target="_blank" 
+    rel="noreferrer"
+    className="inline-flex items-center gap-1.5 text-[#D4AF37] hover:underline"
+  >
+    <MessageCircle size={14} />
+    카카오톡 고객센터 문의하기
+  </a>
+</p>
               <p className="text-xs text-gray-500 mt-4">© 2024 FluxMedia. All rights reserved.</p>
             </div>
           </div>
