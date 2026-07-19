@@ -1299,7 +1299,7 @@ const handlePremiumClick = async () => {
                 { price: 10000, paid: 1000, bonus: 200, label: "+200P 보너스", id: 3 },
                 { price: 30000, paid: 3000, bonus: 500, label: "+500P 넉넉하게!", id: 4 },
                 { price: 50000, paid: 5000, bonus: 1000, label: "+1,000P 파격 혜택", id: 5 },
-                { price: 89000, paid: 8900, bonus: 2600, label: "VIP 끝판왕 혜택", id: 6 },
+                { price: 89000, paid: 8900, bonus: 2600, label: "+2,600P 끝판완 혜택", id: 6 },
               ].map((pkg) => (
                 <div 
                   key={pkg.id} 
@@ -1313,10 +1313,12 @@ const handlePremiumClick = async () => {
                   }`}
                 >
                   <span className="text-sm font-medium text-white">{pkg.price.toLocaleString()}원</span>
-                  <div className="text-right">
-                    <span className="text-base font-bold text-[#D4AF37] block">{(pkg.paid + pkg.bonus).toLocaleString()} P</span>
-                    <span className="text-[10px] text-[#F3E5AB]">{pkg.label}</span>
-                  </div>
+                  <span className="text-base font-bold text-[#D4AF37] block">
+            {(pkg.paid + pkg.bonus).toLocaleString()} P
+          </span>
+          <span className="text-[10px] text-[#F3E5AB]">
+            기본 {pkg.paid.toLocaleString()}P {pkg.bonus > 0 ? `+ 보너스 ${pkg.bonus}P` : ""}
+          </span>
                 </div>
               ))}
             </div>
@@ -1334,10 +1336,19 @@ const handlePremiumClick = async () => {
                   />
                 </div>
                 <div className="bg-[#0a0514] rounded-xl p-4 mb-5 border border-[#3b1d6b] text-center">
-                  <p className="text-[11px] text-[#a48cd1] mb-1">아래 계좌로 <strong className="text-white">{selectedPackage.price.toLocaleString()}원</strong>을 입금해 주세요</p>
-                  <p className="text-sm font-mono font-bold text-[#D4AF37] tracking-wider">국민은행 123456-00-123456</p>
-                  <p className="text-[11px] text-gray-500 mt-0.5">예금주: 플럭스미디어</p>
-                </div>
+  <p className="text-[11px] text-[#a48cd1] mb-1">아래 계좌로 <strong className="text-white">{selectedPackage.price.toLocaleString()}원</strong>을 입금해 주세요</p>
+  <p className="text-sm font-mono font-bold text-[#D4AF37] tracking-wider">국민은행 472501-04-223221</p>
+  <p className="text-[11px] text-gray-500 mt-0.5">예금주: 이동희(플럭스미디어)</p>
+  <a 
+  href="http://pf.kakao.com/_MbvfX/chat" 
+  target="_blank" 
+  rel="noreferrer"
+  className="mt-3 flex items-center justify-center gap-2 bg-[#FEE500] text-[#000000] text-xs font-bold py-2.5 rounded-xl hover:bg-[#F4DC00] transition-all"
+>
+  <MessageCircle size={14} />
+  입금 후 카톡으로 인증하기 (빠른 충전)
+</a>
+</div>
               </div>
             )}
 
