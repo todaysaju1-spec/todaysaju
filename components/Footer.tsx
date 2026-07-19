@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-
+import { MessageCircle } from "lucide-react";
 export default function Footer() {
   const formRef = useRef(null);
   const [policyType, setPolicyType] = useState<"terms" | "privacy" | "refund" | null>(null);
