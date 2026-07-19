@@ -959,7 +959,7 @@ const handlePremiumClick = async () => {
             {/* 1. 오늘의 무료 종합 사주 리포트 (미끼 투척) */}
             <div className="bg-gradient-to-br from-[#1c0d33] to-[#0d051c] p-6 rounded-3xl border-2 border-[#D4AF37]/50 shadow-[0_0_30px_rgba(212,175,55,0.15)] relative overflow-hidden">
               <div className="absolute top-0 right-0 bg-[#D4AF37] text-black text-[10px] font-extrabold px-3 py-1 rounded-bl-xl uppercase tracking-wider">
-                Today's Free
+                당신의 운세
               </div>
               
               <div className="flex items-center gap-2 mb-3">
