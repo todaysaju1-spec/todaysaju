@@ -993,10 +993,12 @@ const handlePremiumClick = async () => {
               <div className="absolute inset-3 border border-[#6b3eb0]/40 rounded-full animate-orbit" style={{ animationDirection: 'reverse', animationDuration: '15s' }}></div>
               <Compass size={36} className="text-[#D4AF37] animate-pulse" />
             </div>
-            {/* 👇 className 맨 끝에 whitespace-pre-wrap 만 추가되었습니다! 👇 */}
+            
+            {/* 로딩 텍스트 */}
             <p className="text-[#D4AF37] text-sm tracking-wide animate-pulse px-4 leading-relaxed font-light whitespace-pre-wrap">
               {loadingText}
             </p>
+            
             {/* 🌟 새로 추가한 버튼 */}
             <button 
               onClick={() => {
@@ -1007,8 +1009,6 @@ const handlePremiumClick = async () => {
             >
               사주 보관함에서 나중에 결과보기 ✨
             </button>
-          </div>
-        )}
           </div>
         )}
 
