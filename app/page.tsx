@@ -1130,6 +1130,31 @@ const handlePremiumClick = async () => {
                       </div>
                     )}
                   </div>
+                  {/* 결혼/자녀 유무 (수정 폼 추가) */}
+          <div className="grid grid-cols-2 gap-4 pt-2 border-t border-[#3b1d6b]/50">
+            <div>
+              <label className="block text-sm font-medium text-[#a48cd1] mb-2">결혼 유무</label>
+              <div className="grid grid-cols-3 gap-1">
+                {["기혼", "연애", "싱글"].map((s) => (
+                  <button key={s} type="button" onClick={() => setUserInfo({ ...userInfo, maritalStatus: s })}
+                    className={`py-2 rounded-lg text-xs font-bold border transition-all ${userInfo.maritalStatus === s ? "bg-[#D4AF37] text-[#120524]" : "bg-[#0a0514] border-[#3b1d6b] text-gray-400"}`}>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[#a48cd1] mb-2">자녀 유무</label>
+              <div className="grid grid-cols-2 gap-1">
+                {["있음", "없음"].map((k) => (
+                  <button key={k} type="button" onClick={() => setUserInfo({ ...userInfo, hasChildren: k })}
+                    className={`py-2 rounded-lg text-xs font-bold border transition-all ${userInfo.hasChildren === k ? "bg-[#D4AF37] text-[#120524]" : "bg-[#0a0514] border-[#3b1d6b] text-gray-400"}`}>
+                    {k}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
                   {/* 💖 접이식 폼 내부 파트너 정보 */}
                   <div className="mt-6 pt-6 border-t border-[#3b1d6b]">
                     <div className="flex justify-between items-center mb-4">
