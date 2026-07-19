@@ -432,6 +432,8 @@ const handleFollowUp = async (question: string) => {
           sajuData: llmFriendlyData,
           category: title, // 클릭한 메뉴 이름 (직업운, 건강운 등)
           maritalStatus: userInfo.maritalStatus,
+          hasChildren: userInfo.hasChildren,             // 👈 자녀 유무 추가
+          partnerData: showPartner ? partnerInfo : null  // 👈 파트너 정보 추가
         }),
       });
 
