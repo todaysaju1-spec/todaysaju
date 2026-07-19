@@ -552,7 +552,7 @@ const handlePremiumClick = async () => {
         sajuData: llmFriendlyData,
         maritalStatus: userInfo.maritalStatus,
         hasChildren: userInfo.hasChildren,
-        partnerData: showPartner ? partnerInfo : null 
+        partnerData: showPartner ? partnerInfo : null, 
         partnerSajuData: partnerLlmFriendlyData
       }),
     });
