@@ -255,6 +255,52 @@ const fetchMyHistory = async () => {
       alert("카카오 로그인 연동 중 문제가 발생했습니다.");
     }
   };
+
+  const TEST_LOGIN_EMAIL = "sajutest@flux.com";
+  const TEST_LOGIN_PASSWORD = "sajutest123!";
+
+  const handleTestLogin = async () => {
+    try {
+      let { data, error } = await supabase.auth.signInWithPassword({
+        email: TEST_LOGIN_EMAIL,
+        password: TEST_LOGIN_PASSWORD,
+      });
+
+      if (error) {
+        const { error: signUpError } = await supabase.auth.signUp({
+          email: TEST_LOGIN_EMAIL,
+          password: TEST_LOGIN_PASSWORD,
+          options: {
+            data: { name: "카드사/심사자 테스트" },
+          },
+        });
+
+        if (signUpError) {
+          alert("테스트 로그인 실패: " + signUpError.message);
+          return;
+        }
+
+        const retry = await supabase.auth.signInWithPassword({
+          email: TEST_LOGIN_EMAIL,
+          password: TEST_LOGIN_PASSWORD,
+        });
+
+        if (retry.error) {
+          alert("테스트 계정 생성 후 로그인 실패: " + retry.error.message);
+          return;
+        }
+
+        data = retry.data;
+      }
+
+      if (data.session) {
+        setStep("input");
+      }
+    } catch (err) {
+      console.error("테스트 로그인 에러:", err);
+      alert("테스트 로그인 중 오류가 발생했습니다.");
+    }
+  };
   // ── 사주 분석 시작 ──
 
  // --- 사주 분석 시작 (B2B 화이트라벨 DB 연동 + ssaju + n8n) ---
@@ -724,6 +770,15 @@ const handlePremiumClick = async () => {
                         <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                       </svg>
                       <span>Google 계정으로 시작</span>
+                    </button>
+
+                    {/* 테스트 로그인 버튼 (카드사/심사용) */}
+                    <button
+                      onClick={handleTestLogin}
+                      className="w-full flex items-center justify-center gap-2 bg-[#1c0d33] hover:bg-[#2a144a] border border-[#D4AF37]/50 hover:border-[#D4AF37] text-[#D4AF37] text-sm font-bold py-3.5 rounded-xl transition-all shadow-[0_0_10px_rgba(212,175,55,0.08)]"
+                    >
+                      <span>🧪</span>
+                      <span>카드사/심사자 테스트 로그인</span>
                     </button>
                   </div>
                 )}

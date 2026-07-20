@@ -8,7 +8,7 @@ const ADMIN_PASSWORD_KEY = "admin_password";
 const DEFAULT_PASSWORD = "flux1234!";
 
 const formatTicketLabel = (ticketType: string, ticketCount: number) => {
-  const typeLabel = ticketType === "premium" ? "premium" : "standard";
+  const typeLabel = ticketType === "premium" ? "👑 프리미엄 패스" : "🎟️ 스탠다드 패스";
   return `${typeLabel} ${ticketCount}장`;
 };
 
@@ -120,6 +120,38 @@ export default function AdminDashboard() {
     setLoadingUsers(false);
   };
 
+  // 🌟 [추가됨] 관리자가 임의로 회원의 티켓(스탠다드/프리미엄)을 직접 수정/지급하는 함수
+  const handleUpdateTickets = async (userId: string, currentStandard: number, currentPremium: number, userName: string) => {
+    const newStd = prompt(`[${userName}]님의 변경할 '스탠다드 패스' 총 개수를 입력하세요:`, String(currentStandard || 0));
+    if (newStd === null) return;
+
+    const newPrm = prompt(`[${userName}]님의 변경할 '프리미엄 패스' 총 개수를 입력하세요:`, String(currentPremium || 0));
+    if (newPrm === null) return;
+
+    const parsedStd = parseInt(newStd, 10);
+    const parsedPrm = parseInt(newPrm, 10);
+
+    if (isNaN(parsedStd) || isNaN(parsedPrm)) {
+      alert("❌ 올바른 숫자를 입력해 주세요.");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("user_profiles")
+      .update({ 
+        standard_ticket: parsedStd, 
+        premium_ticket: parsedPrm 
+      })
+      .eq("id", userId);
+
+    if (error) {
+      alert("❌ 티켓 수정 실패: " + error.message);
+    } else {
+      alert("✅ 회원의 티켓 잔여량이 성공적으로 수정되었습니다.");
+      fetchUsers();
+    }
+  };
+
   const fetchRequests = async () => {
     setLoadingRequests(true);
     const { data, error } = await supabase
@@ -172,7 +204,7 @@ export default function AdminDashboard() {
   const handleApprove = async (request: any) => {
     const ticketLabel = formatTicketLabel(request.ticket_type, request.ticket_count);
     const isConfirmed = confirm(
-      `[${request.depositor_name}]님의 ${request.amount_krw.toLocaleString()}원 입금을 확인하셨습니까?\n확인을 누르면 ${ticketLabel} 티켓이 지급됩니다.`
+      `[${request.depositor_name}]님의 ${request.amount_krw.toLocaleString()}원 입금을 확인하셨습니까?\n확인을 누르면 ${ticketLabel}이(가) 지급됩니다.`
     );
     if (!isConfirmed) return;
 
@@ -187,8 +219,8 @@ export default function AdminDashboard() {
 
       const updatePayload =
         request.ticket_type === "premium"
-          ? { premium_ticket: (userData.premium_ticket || 0) + request.ticket_count }
-          : { standard_ticket: (userData.standard_ticket || 0) + request.ticket_count };
+          ? { premium_ticket: (userData.premium_ticket || 0) + (request.ticket_count || 1) }
+          : { standard_ticket: (userData.standard_ticket || 0) + (request.ticket_count || 1) };
 
       const { error: updateError } = await supabase
         .from("user_profiles")
@@ -393,12 +425,13 @@ export default function AdminDashboard() {
                     <th className="p-4 text-sm text-[#a48cd1] font-medium">생년월일</th>
                     <th className="p-4 text-sm text-[#a48cd1] font-medium">가입일</th>
                     <th className="p-4 text-sm text-[#a48cd1] font-medium">보유 티켓</th>
+                    <th className="p-4 text-sm text-[#a48cd1] font-medium text-center">관리 액션</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loadingUsers ? (
                     <tr>
-                      <td colSpan={5} className="p-8 text-center text-gray-400 animate-pulse">
+                      <td colSpan={6} className="p-8 text-center text-gray-400 animate-pulse">
                         데이터를 불러오는 중입니다...
                       </td>
                     </tr>
@@ -426,6 +459,14 @@ export default function AdminDashboard() {
                             <span className="text-gray-500 mx-1.5">|</span>
                             👑 프리미엄 <span className="text-[#D4AF37]">{u.premium_ticket || 0}</span>장
                           </span>
+                        </td>
+                        <td className="p-4 text-center">
+                          <button
+                            onClick={() => handleUpdateTickets(u.id, u.standard_ticket, u.premium_ticket, u.display_name)}
+                            className="bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] px-4 py-2 rounded-lg text-xs font-bold hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all cursor-pointer"
+                          >
+                            티켓 강제 수정
+                          </button>
                         </td>
                       </tr>
                     ))
