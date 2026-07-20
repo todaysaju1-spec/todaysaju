@@ -616,43 +616,42 @@ const handlePremiumClick = async () => {
 
       {/* ── 상단 헤더 ── */}
       <header className="fixed top-0 w-full flex justify-between items-center p-4 md:p-5 bg-[#0a0514]/80 backdrop-blur-md z-50 border-b border-[#30155c]/50 max-w-xl mx-auto left-0 right-0">
-        <div className="flex items-center gap-2 cursor-pointer" onClick={() => setStep("login")}>
-          <Star className="text-[#D4AF37] w-5 h-5 fill-[#D4AF37]" />
-          <span className="text-[#D4AF37] font-bold tracking-widest text-base md:text-lg">오늘의사주</span>
-          <span className="text-[10px] bg-[#D4AF37]/20 text-[#D4AF37] px-1.5 py-0.5 rounded border border-[#D4AF37]/40">PRO</span>
+        <div className="flex items-center gap-2 cursor-pointer shrink-0" onClick={() => setStep("login")}>
+          <Star className="text-[#D4AF37] w-5 h-5 fill-[#D4AF37] shrink-0" />
+          <span className="text-[#D4AF37] font-bold tracking-widest text-base md:text-lg whitespace-nowrap">오늘의사주</span>
+          <span className="text-[10px] bg-[#D4AF37]/20 text-[#D4AF37] px-1.5 py-0.5 rounded border border-[#D4AF37]/40 shrink-0">PRO</span>
         </div>
         
         {user && (
-          <div className="flex items-center gap-2 md:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 shrink-0">
             {/* 유저 이름 표시 */}
-            <div className="text-xs text-gray-300 hidden sm:block">
+            <div className="text-xs text-gray-300 hidden sm:block whitespace-nowrap">
               <span className="font-bold text-white">{user.user_metadata?.name || "고객"}</span>님
             </div>
             
             <button 
               onClick={fetchMyHistory}
-              className="flex items-center justify-center gap-1.5 bg-[#1c0d33] border border-[#a48cd1]/50 px-3 py-1.5 rounded-full hover:bg-[#D4AF37]/20 hover:border-[#D4AF37] transition-all shadow-[0_0_10px_rgba(212,175,55,0.1)] group"
+              className="flex items-center justify-center gap-1.5 bg-[#1c0d33] border border-[#a48cd1]/50 px-2 py-1.5 sm:px-3 rounded-full hover:bg-[#D4AF37]/20 hover:border-[#D4AF37] transition-all shadow-[0_0_10px_rgba(212,175,55,0.1)] group shrink-0"
             >
               <span className="text-sm">🗂️</span>
-              <span className="text-xs md:text-sm font-bold text-gray-200 group-hover:text-[#D4AF37] transition-colors">사주 보관함</span>
+              <span className="hidden sm:inline-block text-xs md:text-sm font-bold text-gray-200 group-hover:text-[#D4AF37] transition-colors whitespace-nowrap">사주 보관함</span>
             </button>
 
             {/* 🌟 이용권 잔액 및 구매 버튼 */}
-            <div className="flex items-center bg-[#120524] border border-[#3b1d6b] rounded-full p-1 pl-3 shadow-[0_0_10px_rgba(212,175,55,0.15)]">
-              <span className="text-sm font-bold mr-3 flex items-center gap-1.5">
+            <div className="flex items-center bg-[#120524] border border-[#3b1d6b] rounded-full p-1 pl-2 sm:pl-3 shadow-[0_0_10px_rgba(212,175,55,0.15)] shrink-0">
+              <span className="text-xs sm:text-sm font-bold mr-1.5 sm:mr-2 flex items-center gap-0.5 sm:gap-1 whitespace-nowrap">
                 <span className="text-white">🎟️</span>
                 <span className="text-[#D4AF37]">{standardTicket}</span>
-                <span className="text-white text-xs font-normal">장</span>
                 <span className="text-gray-500 mx-0.5">|</span>
                 <span className="text-white">👑</span>
                 <span className="text-[#D4AF37]">{premiumTicket}</span>
-                <span className="text-white text-xs font-normal">장</span>
               </span>
               <button
                 onClick={() => setShowChargeModal(true)}
-                className="bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] text-xs font-extrabold px-3 py-1.5 rounded-full hover:scale-105 transition-transform"
+                className="bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] text-xs font-extrabold px-2 sm:px-3 py-1.5 rounded-full hover:scale-105 transition-transform whitespace-nowrap shrink-0"
               >
-                이용권 구매
+                <span className="sm:hidden">구매</span>
+                <span className="hidden sm:inline">이용권 구매</span>
               </button>
             </div>
           </div>
@@ -1323,7 +1322,10 @@ const handlePremiumClick = async () => {
                   className="w-full bg-gradient-to-r from-[#44237d] to-[#1a0b2e] border-2 border-[#D4AF37] p-6 rounded-3xl text-left relative z-20 overflow-hidden group hover:border-[#F3E5AB] transition-all cursor-pointer shadow-lg"
                 >
                   <div className="absolute top-0 right-0 bg-[#D4AF37] text-[#1a0b2e] font-extrabold text-[10px] px-3 py-1 rounded-bl-xl z-30">BEST</div>
-                  <div className="flex items-center gap-3 relative z-30">
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 bg-[#1c0d33] border border-[#D4AF37]/50 px-2 py-0.5 rounded-md shadow-sm z-30">
+                    <span className="text-[10px] font-bold text-[#D4AF37]">👑 1장</span>
+                  </div>
+                  <div className="flex items-center gap-3 relative z-30 pr-16">
                     <div className="text-3xl">👑</div>
                     <div>
                       <div className="text-white font-bold text-lg">프리미엄 총 사주운세</div>
