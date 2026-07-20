@@ -256,45 +256,53 @@ const fetchMyHistory = async () => {
     }
   };
 
-  const TEST_LOGIN_EMAIL = "sajutest@flux.com";
+  const TEST_LOGIN_EMAIL = "sajutest@sajutest.com";
   const TEST_LOGIN_PASSWORD = "sajutest123!";
 
   const handleTestLogin = async () => {
     try {
-      let { data, error } = await supabase.auth.signInWithPassword({
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email: TEST_LOGIN_EMAIL,
         password: TEST_LOGIN_PASSWORD,
       });
 
-      if (error) {
-        const { error: signUpError } = await supabase.auth.signUp({
-          email: TEST_LOGIN_EMAIL,
-          password: TEST_LOGIN_PASSWORD,
-          options: {
-            data: { name: "카드사/심사자 테스트" },
-          },
-        });
-
-        if (signUpError) {
-          alert("테스트 로그인 실패: " + signUpError.message);
-          return;
-        }
-
-        const retry = await supabase.auth.signInWithPassword({
-          email: TEST_LOGIN_EMAIL,
-          password: TEST_LOGIN_PASSWORD,
-        });
-
-        if (retry.error) {
-          alert("테스트 계정 생성 후 로그인 실패: " + retry.error.message);
-          return;
-        }
-
-        data = retry.data;
+      if (!signInError && signInData.session) {
+        setStep("input");
+        return;
       }
 
-      if (data.session) {
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: TEST_LOGIN_EMAIL,
+        password: TEST_LOGIN_PASSWORD,
+        options: {
+          data: { name: "카드사/심사자 테스트" },
+        },
+      });
+
+      if (signUpError) {
+        alert("테스트 로그인 실패: " + signUpError.message);
+        return;
+      }
+
+      if (signUpData.session) {
         setStep("input");
+        return;
+      }
+
+      const { data: retryData, error: retryError } = await supabase.auth.signInWithPassword({
+        email: TEST_LOGIN_EMAIL,
+        password: TEST_LOGIN_PASSWORD,
+      });
+
+      if (retryError) {
+        alert("테스트 로그인 실패: " + retryError.message);
+        return;
+      }
+
+      if (retryData.session) {
+        setStep("input");
+      } else {
+        alert("테스트 로그인 실패: 세션을 생성하지 못했습니다.");
       }
     } catch (err) {
       console.error("테스트 로그인 에러:", err);
