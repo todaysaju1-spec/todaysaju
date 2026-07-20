@@ -7,6 +7,11 @@ import { CheckCircle2, Wallet, Users, CreditCard, Lock, X } from "lucide-react";
 const ADMIN_PASSWORD_KEY = "admin_password";
 const DEFAULT_PASSWORD = "flux1234!";
 
+const formatTicketLabel = (ticketType: string, ticketCount: number) => {
+  const typeLabel = ticketType === "premium" ? "premium" : "standard";
+  return `${typeLabel} ${ticketCount}장`;
+};
+
 export default function AdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
@@ -115,24 +120,6 @@ export default function AdminDashboard() {
     setLoadingUsers(false);
   };
 
-  const handleUpdatePoints = async (userId: string, currentPoints: number, userName: string) => {
-    const newPoints = prompt(`[${userName}]님의 변경할 포인트 금액을 입력하세요:`, String(currentPoints || 0));
-    if (newPoints === null || newPoints === "") return;
-
-    const parsedPoints = parseInt(newPoints);
-    const { error } = await supabase
-      .from("user_profiles")
-      .update({ points: parsedPoints, paid_points: parsedPoints })
-      .eq("id", userId);
-
-    if (error) {
-      alert("❌ 포인트 수정 실패: " + error.message);
-    } else {
-      alert("✅ 포인트가 성공적으로 변경되었습니다.");
-      fetchUsers();
-    }
-  };
-
   const fetchRequests = async () => {
     setLoadingRequests(true);
     const { data, error } = await supabase
@@ -183,27 +170,29 @@ export default function AdminDashboard() {
   };
 
   const handleApprove = async (request: any) => {
+    const ticketLabel = formatTicketLabel(request.ticket_type, request.ticket_count);
     const isConfirmed = confirm(
-      `[${request.depositor_name}]님의 ${request.amount_krw.toLocaleString()}원 입금을 확인하셨습니까?\n확인을 누르면 ${request.paid_points + request.bonus_points}P가 지급됩니다.`
+      `[${request.depositor_name}]님의 ${request.amount_krw.toLocaleString()}원 입금을 확인하셨습니까?\n확인을 누르면 ${ticketLabel} 티켓이 지급됩니다.`
     );
     if (!isConfirmed) return;
 
     try {
       const { data: userData, error: userError } = await supabase
         .from("user_profiles")
-        .select("points, paid_points, bonus_points")
+        .select("standard_ticket, premium_ticket")
         .eq("id", request.user_id)
         .single();
 
       if (userError) throw userError;
 
-      const newTotal = (userData.points || 0) + request.paid_points + request.bonus_points;
-      const newPaid = (userData.paid_points || 0) + request.paid_points;
-      const newBonus = (userData.bonus_points || 0) + request.bonus_points;
+      const updatePayload =
+        request.ticket_type === "premium"
+          ? { premium_ticket: (userData.premium_ticket || 0) + request.ticket_count }
+          : { standard_ticket: (userData.standard_ticket || 0) + request.ticket_count };
 
       const { error: updateError } = await supabase
         .from("user_profiles")
-        .update({ points: newTotal, paid_points: newPaid, bonus_points: newBonus })
+        .update(updatePayload)
         .eq("id", request.user_id);
 
       if (updateError) throw updateError;
@@ -215,7 +204,7 @@ export default function AdminDashboard() {
 
       if (reqError) throw reqError;
 
-      alert("🎉 포인트 지급이 완료되었습니다!");
+      alert("🎉 티켓 지급이 완료되었습니다!");
       fetchRequests();
     } catch (error) {
       console.error("지급 중 오류 발생:", error);
@@ -330,7 +319,7 @@ export default function AdminDashboard() {
                     <th className="p-4 text-sm text-[#a48cd1] font-medium">신청일시</th>
                     <th className="p-4 text-sm text-[#a48cd1] font-medium">입금자명 (계정)</th>
                     <th className="p-4 text-sm text-[#a48cd1] font-medium">입금(예정) 금액</th>
-                    <th className="p-4 text-sm text-[#a48cd1] font-medium">지급할 포인트</th>
+                    <th className="p-4 text-sm text-[#a48cd1] font-medium">구매한 티켓</th>
                     <th className="p-4 text-sm text-[#a48cd1] font-medium text-center">관리 액션</th>
                   </tr>
                 </thead>
@@ -360,7 +349,7 @@ export default function AdminDashboard() {
                         <td className="p-4 font-bold text-[#F3E5AB]">{req.amount_krw.toLocaleString()}원</td>
                         <td className="p-4">
                           <span className="text-[#D4AF37] font-bold">
-                            {(req.paid_points + req.bonus_points).toLocaleString()} P
+                            {formatTicketLabel(req.ticket_type, req.ticket_count)}
                           </span>
                         </td>
                         <td className="p-4 text-center">
@@ -403,14 +392,13 @@ export default function AdminDashboard() {
                     <th className="p-4 text-sm text-[#a48cd1] font-medium">성별</th>
                     <th className="p-4 text-sm text-[#a48cd1] font-medium">생년월일</th>
                     <th className="p-4 text-sm text-[#a48cd1] font-medium">가입일</th>
-                    <th className="p-4 text-sm text-[#a48cd1] font-medium">보유 포인트</th>
-                    <th className="p-4 text-sm text-[#a48cd1] font-medium text-center">관리 액션</th>
+                    <th className="p-4 text-sm text-[#a48cd1] font-medium">보유 티켓</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loadingUsers ? (
                     <tr>
-                      <td colSpan={6} className="p-8 text-center text-gray-400 animate-pulse">
+                      <td colSpan={5} className="p-8 text-center text-gray-400 animate-pulse">
                         데이터를 불러오는 중입니다...
                       </td>
                     </tr>
@@ -433,17 +421,11 @@ export default function AdminDashboard() {
                         <td className="p-4 text-sm text-gray-300">{u.birth_date || "-"}</td>
                         <td className="p-4 text-xs text-gray-400">{new Date(u.created_at).toLocaleDateString()}</td>
                         <td className="p-4">
-                          <span className="bg-[#D4AF37]/10 text-[#D4AF37] px-3 py-1 rounded-full font-bold text-sm border border-[#D4AF37]/30">
-                            {(u.points || 0).toLocaleString()} P
+                          <span className="text-sm font-bold text-white">
+                            🎟️ 스탠다드 <span className="text-[#D4AF37]">{u.standard_ticket || 0}</span>장
+                            <span className="text-gray-500 mx-1.5">|</span>
+                            👑 프리미엄 <span className="text-[#D4AF37]">{u.premium_ticket || 0}</span>장
                           </span>
-                        </td>
-                        <td className="p-4 text-center">
-                          <button
-                            onClick={() => handleUpdatePoints(u.id, u.points, u.display_name)}
-                            className="bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] px-4 py-2 rounded-lg text-xs font-bold hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all"
-                          >
-                            포인트 강제 수정
-                          </button>
                         </td>
                       </tr>
                     ))
@@ -526,7 +508,7 @@ export default function AdminDashboard() {
                           <th className="p-3 text-sm text-[#a48cd1] font-medium">신청일시</th>
                           <th className="p-3 text-sm text-[#a48cd1] font-medium">입금자명</th>
                           <th className="p-3 text-sm text-[#a48cd1] font-medium">입금 금액</th>
-                          <th className="p-3 text-sm text-[#a48cd1] font-medium">지급 포인트</th>
+                          <th className="p-3 text-sm text-[#a48cd1] font-medium">구매 티켓</th>
                           <th className="p-3 text-sm text-[#a48cd1] font-medium text-center">상태</th>
                         </tr>
                       </thead>
@@ -541,7 +523,7 @@ export default function AdminDashboard() {
                               {charge.amount_krw.toLocaleString()}원
                             </td>
                             <td className="p-3 text-sm font-bold text-[#D4AF37]">
-                              {(charge.paid_points + charge.bonus_points).toLocaleString()} P
+                              {formatTicketLabel(charge.ticket_type, charge.ticket_count)}
                             </td>
                             <td className="p-3 text-center">
                               {charge.status === "completed" ? (

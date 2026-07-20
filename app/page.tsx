@@ -22,7 +22,8 @@ export default function TodaySajuLanding() {
     hasChildren: "없음",   // 있음, 없음
   });
   const [user, setUser] = useState<any>(null);
-  const [points, setPoints] = useState(1000); // 가입 축하금 1,000P 기본 지급!
+  const [standardTicket, setStandardTicket] = useState(0);
+  const [premiumTicket, setPremiumTicket] = useState(0);
   const [hasUsedDailyFree, setHasUsedDailyFree] = useState(false);
   const [showChargeModal, setShowChargeModal] = useState(false);
   const [loadingText, setLoadingText] = useState("명식(命式)을 세우고 타고난 기운의 흐름을 짚어보고 있습니다.\n(예상 소요 시간: 1~2분)");
@@ -53,9 +54,23 @@ const [showGuestModal, setShowGuestModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyList, setHistoryList] = useState<any[]>([]);
   const [selectedHistory, setSelectedHistory] = useState<any>(null); // 리스트에서 클릭한 상세 내역
- // 포인트 충전용 상태 추가
+ // 이용권 구매용 상태 추가
   const [selectedPackage, setSelectedPackage] = useState<any>(null);
   const [depositorName, setDepositorName] = useState("");
+
+  const STANDARD_PACKAGES = [
+    { id: "std-1", category: "standard", price: 3900, tickets: 1, label: "1회권" },
+    { id: "std-5", category: "standard", price: 17000, tickets: 5, label: "5회권", discount: "12% 할인" },
+    { id: "std-10", category: "standard", price: 29000, tickets: 10, label: "10회권", discount: "25% 할인" },
+  ];
+
+  const PREMIUM_PACKAGES = [
+    { id: "prm-1", category: "premium", price: 19000, tickets: 1, label: "1회권" },
+    { id: "prm-5", category: "premium", price: 85000, tickets: 5, label: "5회권", discount: "10% 할인" },
+  ];
+
+  const getTicketUsageLabel = (type: string) =>
+    type === "premium" ? "👑 프리미엄 패스 1장" : "🎟️ 스탠다드 패스 1장";
   // (기존 코드) 꼬리질문 상태 아래나 편한 곳에 추가해 주세요!
   const [showResultForm, setShowResultForm] = useState(false); // 👈 결과창 접이식 폼 스위치
   const [isAgreed, setIsAgreed] = useState(false);
@@ -114,16 +129,16 @@ useEffect(() => {
   setStars(generatedStars);
 }, []);
 useEffect(() => {
-  // 🌟 [추가됨] Supabase 은행에서 내 진짜 포인트 가져오는 함수
-  const fetchMyPoints = async (userId: string) => {
-    const { data, error } = await supabase
+  const fetchMyTickets = async (userId: string) => {
+    const { data } = await supabase
       .from("user_profiles")
-      .select("points")
+      .select("standard_ticket, premium_ticket")
       .eq("id", userId)
       .single();
 
-    if (data && data.points !== undefined) {
-      setPoints(data.points); // 내 진짜 잔고를 지갑(화면)에 업데이트!
+    if (data) {
+      setStandardTicket(data.standard_ticket ?? 0);
+      setPremiumTicket(data.premium_ticket ?? 0);
     }
   };
 
@@ -143,8 +158,8 @@ useEffect(() => {
   supabase.auth.getSession().then(({ data: { session } }) => {
     setUser(session?.user || null);
     if (session?.user) {
-      fetchMyPoints(session.user.id); // 로그인되어 있으면 잔고 확인
-      checkDailyFree(session.user.id); // 👈 [추가됨] 로그인 직후 상태 체크
+      fetchMyTickets(session.user.id);
+      checkDailyFree(session.user.id);
     }
   });
 
@@ -152,11 +167,12 @@ useEffect(() => {
   const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
     setUser(session?.user || null);
     if (session?.user) {
-      fetchMyPoints(session.user.id); // 로그인하면 잔고 확인
-      checkDailyFree(session.user.id); // 👈 [추가됨] 상태 변할 때 체크
+      fetchMyTickets(session.user.id);
+      checkDailyFree(session.user.id);
     } else {
-      setPoints(1000); // 로그아웃하면 다시 기본값으로
-      setHasUsedDailyFree(false); // 👈 [추가됨] 로그아웃하면 무료 이용 내역도 초기화
+      setStandardTicket(0);
+      setPremiumTicket(0);
+      setHasUsedDailyFree(false);
     }
   });
 
@@ -496,13 +512,6 @@ const handlePremiumClick = async () => {
     return;
   }
   
-  // 2. 포인트 잔액 확인
-  if (points < 2000) { 
-    alert("포인트가 부족합니다. 충전 후 이용해주세요!");
-    setShowChargeModal(true);
-    return;
-  }
-
   setStep("analyzing");
   setLoadingText("대운(大運)과 세운(歲運)을 교차하여 심층 마스터플랜을 구성 중입니다.\n운명의 전체 궤도를 분석하는 정밀 작업으로 약 5~9분 정도 소요됩니다.");
 
@@ -628,16 +637,22 @@ const handlePremiumClick = async () => {
               <span className="text-xs md:text-sm font-bold text-gray-200 group-hover:text-[#D4AF37] transition-colors">사주 보관함</span>
             </button>
 
-            {/* 🌟 눈에 확 띄는 포인트 및 충전 버튼 세트 */}
+            {/* 🌟 이용권 잔액 및 구매 버튼 */}
             <div className="flex items-center bg-[#120524] border border-[#3b1d6b] rounded-full p-1 pl-3 shadow-[0_0_10px_rgba(212,175,55,0.15)]">
-              <span className="text-sm font-bold text-[#D4AF37] mr-3">
-                {points.toLocaleString()} <span className="text-xs font-normal">P</span>
+              <span className="text-sm font-bold mr-3 flex items-center gap-1.5">
+                <span className="text-white">🎟️</span>
+                <span className="text-[#D4AF37]">{standardTicket}</span>
+                <span className="text-white text-xs font-normal">장</span>
+                <span className="text-gray-500 mx-0.5">|</span>
+                <span className="text-white">👑</span>
+                <span className="text-[#D4AF37]">{premiumTicket}</span>
+                <span className="text-white text-xs font-normal">장</span>
               </span>
               <button
                 onClick={() => setShowChargeModal(true)}
                 className="bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] text-xs font-extrabold px-3 py-1.5 rounded-full hover:scale-105 transition-transform"
               >
-                충전하기
+                이용권 구매
               </button>
             </div>
           </div>
@@ -666,7 +681,7 @@ const handlePremiumClick = async () => {
                 {/* 서브 텍스트 크기 확대 */}
                 <p className="text-sm md:text-base text-[#a48cd1] leading-relaxed pt-3">
                   복잡한 회원가입 없이 단 1초 만에 시작하세요.<br />
-                  지금 시작하면 심층 풀이용 <span className="text-[#D4AF37] font-bold text-lg">1,000 포인트</span>를 드립니다.
+                  지금 시작하면 심층 풀이용 <span className="text-[#D4AF37] font-bold text-lg">스탠다드 패스 1장</span>을 드립니다.
                 </p>
               </div>
 
@@ -957,10 +972,9 @@ const handlePremiumClick = async () => {
                     fetchMyHistory();
                     return;
                   } else {
-                    // 이름이나 생일이 바뀐 경우 (타인 사주) -> 300P 결제 장바구니에 담기!
+                    // 이름이나 생일이 바뀐 경우 (타인 사주) -> 스탠다드 패스 1장 결제 대기열
                     setPendingPayment({ 
                       type: "other_saju", 
-                      cost: 300, 
                       title: `[${userInfo.name}]님의 일일 운세`, 
                       payload: null 
                     });
@@ -1052,7 +1066,7 @@ const handlePremiumClick = async () => {
                             return;
                           }
                           // 꼬리질문 결제 대기열에 올림 (300P)
-                          setPendingPayment({ type: "followup", cost: 300, title: "심층 꼬리질문", payload: q });
+                          setPendingPayment({ type: "followup", title: "심층 꼬리질문", payload: q });
                         }}
                         className="bg-[#1a0b2e] border border-[#44237d] hover:border-[#D4AF37] hover:bg-[#D4AF37]/10 text-gray-300 hover:text-[#F3E5AB] text-xs px-4 py-2.5 rounded-full transition-all"
                       >
@@ -1094,7 +1108,7 @@ const handlePremiumClick = async () => {
                               return;
                             }
                             // 꼬리질문 결제 대기열에 올림 (300P)
-                            setPendingPayment({ type: "followup", cost: 300, title: "심층 꼬리질문", payload: q });
+                            setPendingPayment({ type: "followup", title: "심층 꼬리질문", payload: q });
                           }}
                           className="bg-[#1a0b2e] border border-[#44237d] hover:border-[#D4AF37] hover:bg-[#D4AF37]/10 text-gray-300 hover:text-[#F3E5AB] text-xs px-4 py-2.5 rounded-full transition-all"
                         >
@@ -1303,7 +1317,7 @@ const handlePremiumClick = async () => {
                     setShowGuestModal(true); 
                   } else {
                     // 🌟 [핵심 변경] 기존 모달 대신, 2000P짜리 결제 장바구니에 담습니다!
-                    setPendingPayment({ type: "premium", cost: 2000, title: "프리미엄 인생 마스터플랜", payload: null });
+                    setPendingPayment({ type: "premium", title: "프리미엄 인생 마스터플랜", payload: null });
                   }
                 }}
                   className="w-full bg-gradient-to-r from-[#44237d] to-[#1a0b2e] border-2 border-[#D4AF37] p-6 rounded-3xl text-left relative z-20 overflow-hidden group hover:border-[#F3E5AB] transition-all cursor-pointer shadow-lg"
@@ -1339,15 +1353,14 @@ const handlePremiumClick = async () => {
                         return;
                       }
                       // 8메뉴 결제 대기열에 올림 (500P)
-                      setPendingPayment({ type: "menu", cost: 500, title: item.title, payload: item });
+                      setPendingPayment({ type: "menu", title: item.title, payload: item });
                     }}
                     // 👇 변경점 1: className 맨 끝에 'relative'를 추가했습니다! (우측 상단 뱃지 고정용)
                     className="p-3.5 sm:p-4 bg-[#15072a]/50 border border-[#3b1d6b] rounded-2xl hover:bg-[#1e0c3a] hover:border-[#D4AF37] transition-all text-left group shadow-lg flex flex-col justify-start relative"
                   >
-                    {/* 👇 변경점 2: 새로 추가된 '500 P' 가격표 뱃지 👇 */}
                     <div className="absolute top-2 right-2 bg-[#1c0d33] border border-[#D4AF37]/50 px-2 py-0.5 rounded-md shadow-sm z-10">
                       <span className="text-[10px] font-bold text-[#D4AF37]">
-                        500 P
+                        🎟️ 1장
                       </span>
                     </div>
 
@@ -1369,111 +1382,163 @@ const handlePremiumClick = async () => {
 
       </div>
 
-      {/* 💳 [모달] 로벅스 스타일 포인트 상점 (무통장 입금 연동 완료) */}
+      {/* 💳 [모달] 이용권 구매 (무통장 입금 연동) */}
       {showChargeModal && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[100] flex items-center justify-center p-5 animate-in fade-in">
-          <div className="bg-[#120524] border border-[#D4AF37]/50 w-full max-w-sm rounded-3xl p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold text-white text-center mb-1">🪙 포인트 상점</h3>
-            <p className="text-xs text-[#a48cd1] text-center mb-5">원하시는 패키지를 선택해 주세요.</p>
-            
-            {/* 패키지 리스트 */}
-            <div className="space-y-2 mb-6">
-              {[
-                { price: 3000, paid: 300, bonus: 0, label: "기본 사주 1회", id: 1 },
-                { price: 5000, paid: 500, bonus: 0, label: "기본+꼬리질문", id: 2 },
-                { price: 10000, paid: 1000, bonus: 200, label: "+200P 보너스", id: 3 },
-                { price: 30000, paid: 3000, bonus: 500, label: "+500P 넉넉하게!", id: 4 },
-                { price: 50000, paid: 5000, bonus: 1000, label: "+1,000P 파격 혜택", id: 5 },
-                { price: 89000, paid: 8900, bonus: 2600, label: "+2,600P 끝판완 혜택", id: 6 },
-              ].map((pkg) => (
-                <div 
-                  key={pkg.id} 
-                  onClick={() => setSelectedPackage(pkg)}
-                  className={`p-3.5 rounded-2xl border flex justify-between items-center cursor-pointer transition-all ${
-                    selectedPackage?.id === pkg.id 
-                      ? "border-[#D4AF37] bg-[#D4AF37]/20 shadow-[0_0_10px_rgba(212,175,55,0.3)]" 
-                      : pkg.bonus > 0 
-                        ? "border-[#44237d] bg-[#1a0b2e] hover:border-[#D4AF37]/50" 
-                        : "border-[#3b1d6b] bg-[#0a0514] hover:border-[#D4AF37]/50"
-                  }`}
-                >
-                  <span className="text-sm font-medium text-white">{pkg.price.toLocaleString()}원</span>
-                  <span className="text-base font-bold text-[#D4AF37] block">
-            {(pkg.paid + pkg.bonus).toLocaleString()} P
-          </span>
-          <span className="text-[10px] text-[#F3E5AB]">
-            기본 {pkg.paid.toLocaleString()}P {pkg.bonus > 0 ? `+ 보너스 ${pkg.bonus}P` : ""}
-          </span>
+          <div className="bg-[#120524] border border-[#D4AF37]/50 w-full max-w-lg rounded-3xl p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-bold text-white text-center mb-1">🎫 이용권 구매</h3>
+            <p className="text-xs text-[#a48cd1] text-center mb-6">원하시는 이용권 패키지를 선택해 주세요.</p>
+
+            {/* A. 스탠다드 패스 */}
+            <div className="mb-6">
+              <div className="rounded-2xl border border-slate-500/40 bg-gradient-to-br from-slate-800/60 via-[#1a2a4a]/80 to-[#0f1a2e] p-4 shadow-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-300 bg-slate-600/40 px-2 py-0.5 rounded-full">Standard</span>
+                  <h4 className="text-base font-bold text-slate-100">스탠다드 패스</h4>
                 </div>
-              ))}
+                <p className="text-[11px] text-slate-400 leading-relaxed mb-4">
+                  일일 사주, 꼬리질문, 8개 테마 사주 이용 시 1회 사용 (※ 프리미엄 사주 불가)
+                </p>
+                <div className="space-y-2">
+                  {STANDARD_PACKAGES.map((pkg) => (
+                    <button
+                      key={pkg.id}
+                      type="button"
+                      onClick={() => setSelectedPackage(pkg)}
+                      className={`w-full p-3.5 rounded-xl border flex justify-between items-center cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] ${
+                        selectedPackage?.id === pkg.id
+                          ? "border-sky-400 bg-sky-500/20 shadow-[0_0_15px_rgba(56,189,248,0.25)]"
+                          : "border-slate-600/60 bg-[#0a1428]/80 hover:border-sky-400/50 hover:bg-sky-500/10"
+                      }`}
+                    >
+                      <div className="text-left">
+                        <span className="text-sm font-bold text-white">{pkg.label}</span>
+                        <span className="block text-xs text-slate-400 mt-0.5">{pkg.tickets}티켓</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {pkg.discount && (
+                          <span className="text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-1 rounded-full">
+                            {pkg.discount}
+                          </span>
+                        )}
+                        <span className="text-base font-bold text-sky-300">{pkg.price.toLocaleString()}원</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* B. 프리미엄 패스 */}
+            <div className="mb-6">
+              <div className="rounded-2xl border border-[#D4AF37]/40 bg-gradient-to-br from-[#1a1208] via-[#0a0514] to-[#1c0d33] p-4 shadow-[0_0_20px_rgba(212,175,55,0.08)]">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs font-bold uppercase tracking-wider text-[#D4AF37] bg-[#D4AF37]/10 border border-[#D4AF37]/30 px-2 py-0.5 rounded-full">Premium</span>
+                  <h4 className="text-base font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB]">프리미엄 패스</h4>
+                </div>
+                <p className="text-[11px] text-[#a48cd1] leading-relaxed mb-4">
+                  프리미엄 정밀 사주(파트너 궁합 포함) 전용 티켓 (※ 기본 사주 불가)
+                </p>
+                <div className="space-y-2">
+                  {PREMIUM_PACKAGES.map((pkg) => (
+                    <button
+                      key={pkg.id}
+                      type="button"
+                      onClick={() => setSelectedPackage(pkg)}
+                      className={`w-full p-3.5 rounded-xl border flex justify-between items-center cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] ${
+                        selectedPackage?.id === pkg.id
+                          ? "border-[#D4AF37] bg-[#D4AF37]/15 shadow-[0_0_20px_rgba(212,175,55,0.3)]"
+                          : "border-[#3b1d6b] bg-[#0a0514]/90 hover:border-[#D4AF37]/50 hover:bg-[#D4AF37]/5"
+                      }`}
+                    >
+                      <div className="text-left">
+                        <span className="text-sm font-bold text-white">{pkg.label}</span>
+                        <span className="block text-xs text-[#a48cd1] mt-0.5">{pkg.tickets}티켓</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {pkg.discount && (
+                          <span className="text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-1 rounded-full">
+                            {pkg.discount}
+                          </span>
+                        )}
+                        <span className="text-base font-bold text-[#D4AF37]">{pkg.price.toLocaleString()}원</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* 입금자명 입력 및 계좌 안내 (패키지를 선택했을 때만 보임) */}
             {selectedPackage && (
               <div className="animate-in slide-in-from-top-2">
                 <div className="mb-4">
-                  <input 
-                    type="text" 
-                    placeholder="입금하시는 분 성함 (예: 홍길동)" 
+                  <input
+                    type="text"
+                    placeholder="입금하시는 분 성함 (예: 홍길동)"
                     value={depositorName}
                     onChange={(e) => setDepositorName(e.target.value)}
                     className="w-full bg-[#0a0514] border border-[#D4AF37]/50 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-[#D4AF37]"
                   />
                 </div>
                 <div className="bg-[#0a0514] rounded-xl p-4 mb-5 border border-[#3b1d6b] text-center">
-  <p className="text-[11px] text-[#a48cd1] mb-1">아래 계좌로 <strong className="text-white">{selectedPackage.price.toLocaleString()}원</strong>을 입금해 주세요</p>
-  <p className="text-sm font-mono font-bold text-[#D4AF37] tracking-wider">국민은행 472501-04-223221</p>
-  <p className="text-[11px] text-gray-500 mt-0.5">예금주: 이동희(플럭스미디어)</p>
-  <a 
-  href="http://pf.kakao.com/_MbvfX/chat" 
-  target="_blank" 
-  rel="noreferrer"
-  className="mt-3 flex items-center justify-center gap-2 bg-[#FEE500] text-[#000000] text-xs font-bold py-2.5 rounded-xl hover:bg-[#F4DC00] transition-all"
->
-  <MessageCircle size={14} />
-  입금 후 카톡으로 인증하기 (빠른 충전)
-</a>
-</div>
+                  <p className="text-[11px] text-[#a48cd1] mb-1">
+                    아래 계좌로 <strong className="text-white">{selectedPackage.price.toLocaleString()}원</strong>을 입금해 주세요
+                  </p>
+                  <p className="text-xs text-[#D4AF37] font-bold mb-1">
+                    {selectedPackage.category === "premium" ? "프리미엄 패스" : "스탠다드 패스"} · {selectedPackage.label} ({selectedPackage.tickets}티켓)
+                  </p>
+                  <p className="text-sm font-mono font-bold text-[#D4AF37] tracking-wider">국민은행 472501-04-223221</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">예금주: 이동희(플럭스미디어)</p>
+                  <a
+                    href="http://pf.kakao.com/_MbvfX/chat"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-3 flex items-center justify-center gap-2 bg-[#FEE500] text-[#000000] text-xs font-bold py-2.5 rounded-xl hover:bg-[#F4DC00] transition-all"
+                  >
+                    <MessageCircle size={14} />
+                    입금 후 카톡으로 인증하기 (빠른 처리)
+                  </a>
+                </div>
               </div>
             )}
 
             {/* 하단 버튼 */}
             <div className="flex gap-2 mt-4">
-              <button 
-                onClick={() => { setShowChargeModal(false); setSelectedPackage(null); setDepositorName(""); }} 
-                className="flex-1 py-3 bg-[#1c0d33] text-[#a48cd1] rounded-xl text-xs font-bold"
+              <button
+                onClick={() => { setShowChargeModal(false); setSelectedPackage(null); setDepositorName(""); }}
+                className="flex-1 py-3 bg-[#1c0d33] text-[#a48cd1] rounded-xl text-xs font-bold hover:bg-[#2a144a] transition-colors"
               >
                 닫기
               </button>
-              <button 
+              <button
                 onClick={async () => {
-                  if (!selectedPackage) return alert("충전할 패키지를 선택해 주세요!");
+                  if (!selectedPackage) return alert("구매할 이용권을 선택해 주세요!");
                   if (!depositorName.trim()) return alert("입금자명을 입력해 주세요!");
                   if (!user) return alert("로그인 정보가 없습니다. 다시 로그인해 주세요.");
 
-                  // 🌟 Supabase DB에 신청 내역 쏘기!
-                  const { error } = await supabase.from('deposit_requests').insert({
+                  const { error } = await supabase.from("deposit_requests").insert({
                     user_id: user.id,
                     user_email: user.email || user.user_metadata?.email || "이메일 없음",
                     depositor_name: depositorName,
                     amount_krw: selectedPackage.price,
-                    paid_points: selectedPackage.paid,
-                    bonus_points: selectedPackage.bonus
+                    ticket_type: selectedPackage.category,
+                    ticket_count: selectedPackage.tickets,
                   });
 
                   if (error) {
                     console.error("신청 에러:", error);
                     alert("신청 중 오류가 발생했습니다. 다시 시도해 주세요.");
                   } else {
-                    alert("✅ 입금 알림이 접수되었습니다!\n관리자 확인 후 1~3분 내로 포인트가 지급됩니다.");
+                    alert("✅ 입금 알림이 접수되었습니다!\n관리자 확인 후 1~3분 내로 티켓이 지급됩니다.");
                     setShowChargeModal(false);
                     setSelectedPackage(null);
                     setDepositorName("");
                   }
-                }} 
-                className={`flex-[2] py-3 rounded-xl text-xs font-extrabold shadow-lg transition-all ${
-                  selectedPackage && depositorName 
-                    ? "bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524]" 
+                }}
+                className={`flex-[2] py-3 rounded-xl text-xs font-extrabold shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] ${
+                  selectedPackage && depositorName
+                    ? "bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] hover:shadow-[0_0_15px_rgba(212,175,55,0.4)]"
                     : "bg-gray-700 text-gray-400 cursor-not-allowed"
                 }`}
                 disabled={!selectedPackage || !depositorName}
@@ -1481,6 +1546,11 @@ const handlePremiumClick = async () => {
                 입금 완료했어요
               </button>
             </div>
+
+            {/* 법적 고지사항 */}
+            <p className="text-[9px] text-gray-500/70 leading-relaxed mt-5 pt-4 border-t border-[#3b1d6b]/50 text-center">
+              본 이용권의 유효기간은 구매일로부터 90일입니다. / 구매 후 7일 이내 미사용 시 전액 환불 가능 / 부분 환불 시 적용된 할인가가 아닌 &apos;1회권 정상가&apos; 기준으로 사용분이 공제되며, 결제 금액의 10%가 위약금으로 발생합니다.
+            </p>
           </div>
         </div>
       )}
@@ -1498,7 +1568,7 @@ const handlePremiumClick = async () => {
               <h3 className="text-xl font-bold text-white mb-2">프리미엄 운세 잠금 해제</h3>
               <p className="text-sm text-[#a48cd1] leading-relaxed">
                 3초 만에 로그인하고 심층 분석용<br/>
-                <span className="text-[#D4AF37] font-bold text-base">1,000 포인트</span>를 즉시 받아보세요!
+                <span className="text-[#D4AF37] font-bold text-base">스탠다드 패스 1장</span>을 즉시 받아보세요!
               </p>
             </div>
             
@@ -1545,7 +1615,7 @@ const handlePremiumClick = async () => {
         </div>
       )}
       {/* 👇👇👇 [여기에 복사해서 붙여넣으세요!] 통합 결제 모달창 👇👇👇 */}
-      {/* 💳 [통합 모달] 포인트 결제 및 DB 차감 관문 */}
+      {/* 💳 [통합 모달] 이용권 차감 및 분석 시작 */}
       {pendingPayment && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[100] flex items-center justify-center p-5 animate-in fade-in">
           <div className="bg-[#120524] border border-[#D4AF37]/50 w-full max-w-sm rounded-3xl p-6 shadow-2xl relative overflow-hidden">
@@ -1559,8 +1629,10 @@ const handlePremiumClick = async () => {
               </div>
               
               <div className="bg-[#0a0514] p-4 rounded-2xl border border-[#3b1d6b] my-4">
-                <p className="text-xs text-[#a48cd1]">차감 예정 포인트</p>
-                <p className="text-2xl font-bold text-[#D4AF37]">{pendingPayment.cost.toLocaleString()} P</p>
+                <p className="text-xs text-[#a48cd1]">사용할 이용권</p>
+                <p className="text-xl font-bold text-[#D4AF37] mt-1">
+                  {getTicketUsageLabel(pendingPayment.type)}
+                </p>
               </div>
             </div>
 
@@ -1573,33 +1645,38 @@ const handlePremiumClick = async () => {
               </button>
               <button 
                 onClick={async () => {
-                  // 1. 잔액 확인
-                  if (points < pendingPayment.cost) {
-                    alert("포인트가 부족합니다. 충전 후 이용해주세요!");
+                  const isPremium = pendingPayment.type === "premium";
+                  const currentTicketCount = isPremium ? premiumTicket : standardTicket;
+                  const ticketField = isPremium ? "premium_ticket" : "standard_ticket";
+
+                  if (currentTicketCount < 1) {
+                    alert("이용권이 부족합니다. 이용권 구매 후 이용해주세요!");
                     setPendingPayment(null);
                     setShowChargeModal(true);
                     return;
                   }
 
-                  // 2. 🌟 [핵심] 실제 Supabase DB에서 포인트 차감!
-                  const newPoints = points - pendingPayment.cost;
+                  const newTicketCount = currentTicketCount - 1;
                   const { error } = await supabase
-                    .from('user_profiles')
-                    .update({ points: newPoints })
-                    .eq('id', user.id);
+                    .from("user_profiles")
+                    .update({ [ticketField]: newTicketCount })
+                    .eq("id", user.id);
 
                   if (error) {
-                    console.error("DB 차감 에러:", error);
+                    console.error("DB 티켓 차감 에러:", error);
                     alert("결제 처리 중 오류가 발생했습니다.");
                     return;
                   }
 
-                  // 3. 결제 성공 시 화면 잔고 업데이트 및 모달 닫기
-                  setPoints(newPoints);
-                  const action = pendingPayment; // 실행할 작업 백업
+                  if (isPremium) {
+                    setPremiumTicket(newTicketCount);
+                  } else {
+                    setStandardTicket(newTicketCount);
+                  }
+
+                  const action = pendingPayment;
                   setPendingPayment(null);
 
-                  // 4. 구매한 상품에 맞는 분석 엔진 가동!
                   if (action.type === "premium") {
                     handlePremiumClick();
                   } else if (action.type === "menu") {
@@ -1607,7 +1684,7 @@ const handlePremiumClick = async () => {
                   } else if (action.type === "followup") {
                     handleFollowUp(action.payload);
                   } else if (action.type === "other_saju") {
-                    handleAnalyze(); // 👈 타인 사주 결제 완료 시 분석 시작!
+                    handleAnalyze();
                   }
                 }} 
                 className="flex-[2] py-3 bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] rounded-xl font-bold text-sm shadow-[0_0_15px_rgba(212,175,55,0.3)] hover:brightness-110 transition-all"
