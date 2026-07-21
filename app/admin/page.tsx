@@ -165,31 +165,62 @@ export default function AdminDashboard() {
   };
 
   const handleUserClick = async (user: any) => {
+    const selectedUserId = user.id;
+
+    if (!selectedUserId) {
+      console.error("선택된 회원 UUID가 없습니다:", user);
+      alert("회원 UUID를 확인할 수 없습니다.");
+      return;
+    }
+
     setSelectedUser(user);
     setDetailTab("charges");
     setUserCharges([]);
     setUserSajus([]);
     setIsUserDetailLoading(true);
 
-    const [chargesResult, sajusResult] = await Promise.all([
-      supabase
-        .from("deposit_requests")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false }),
-      supabase
+    const chargesResult = await supabase
+      .from("deposit_requests")
+      .select("*")
+      .eq("user_id", selectedUserId)
+      .order("created_at", { ascending: false });
+
+    if (chargesResult.error) {
+      console.error("충전 내역 조회 에러:", chargesResult.error, "selectedUserId:", selectedUserId);
+    } else {
+      setUserCharges(chargesResult.data || []);
+    }
+
+    let historyData: any[] = [];
+
+    try {
+      const response = await fetch(
+        `/api/admin/saju-history?userId=${encodeURIComponent(selectedUserId)}`
+      );
+
+      if (response.ok) {
+        const json = await response.json();
+        historyData = json.data || [];
+      } else {
+        throw new Error(`API ${response.status}`);
+      }
+    } catch (apiError) {
+      console.warn("Admin API 조회 실패, 클라이언트 직접 쿼리 시도:", apiError);
+
+      const { data: historyDataDirect, error: historyError } = await supabase
         .from("saju_history")
         .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false }),
-    ]);
+        .eq("user_id", selectedUserId)
+        .order("created_at", { ascending: false });
 
-    if (chargesResult.error) console.error("충전 내역 조회 에러:", chargesResult.error);
-    else setUserCharges(chargesResult.data || []);
+      if (historyError) {
+        console.error("사주 내역 조회 에러:", historyError, "selectedUserId:", selectedUserId);
+      } else {
+        historyData = historyDataDirect || [];
+      }
+    }
 
-    if (sajusResult.error) console.error("사주 내역 조회 에러:", sajusResult.error);
-    else setUserSajus(sajusResult.data || []);
-
+    setUserSajus(historyData);
     setIsUserDetailLoading(false);
   };
 

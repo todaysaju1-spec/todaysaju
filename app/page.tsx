@@ -302,6 +302,8 @@ const fetchMyHistory = async () => {
     try {
       const PortOne = await import("@portone/browser-sdk/v2");
       const paymentId = `payment-${Date.now()}${Math.random().toString(36).slice(2, 11)}`;
+      const redirectUrl =
+        typeof window !== "undefined" ? `${window.location.origin}/payment/redirect` : undefined;
 
       const response = await PortOne.requestPayment({
         storeId: PORTONE_STORE_ID,
@@ -311,6 +313,11 @@ const fetchMyHistory = async () => {
         totalAmount: selectedPackage.price,
         currency: "CURRENCY_KRW",
         payMethod: "CARD",
+        windowType: {
+          pc: "IFRAME",
+          mobile: "REDIRECTION",
+        },
+        redirectUrl,
       });
 
       if (response.code !== undefined) {
