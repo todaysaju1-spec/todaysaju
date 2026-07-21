@@ -1647,10 +1647,19 @@ const handlePremiumClick = async () => {
               </button>
             </div>
 
-            {/* 법적 고지사항 */}
-            <p className="text-[9px] text-gray-500/70 leading-relaxed mt-5 pt-4 border-t border-[#3b1d6b]/50 text-center">
-              배송(제공) 안내: 본 상품은 실물 배송이 없는 무형의 디지털 콘텐츠로, 결제 완료 즉시 이용권이 자동 지급되어 서비스 이용이 가능합니다. / 본 이용권의 유효기간은 구매일로부터 90일입니다. / 구매 후 7일 이내 미사용 시 전액 환불 가능 / 부분 환불 시 적용된 할인가가 아닌 &apos;1회권 정상가&apos; 기준으로 사용분이 공제되며, 결제 금액의 10%가 위약금으로 발생합니다.
-            </p>
+            {/* 법적 고지사항 및 배송 안내 */}
+            <div className="mt-5 pt-5 border-t border-[#3b1d6b]/50">
+              <div className="bg-[#0a0514] rounded-xl p-4 text-[11px] text-gray-400 leading-relaxed text-left space-y-2.5 border border-[#3b1d6b]/40">
+                <p>
+                  <strong className="text-[#a48cd1] font-bold">📦 배송(제공) 안내 : </strong>
+                  본 상품은 실물 배송이 없는 무형의 디지털 콘텐츠로, 결제 완료 즉시 이용권이 자동 지급되어 서비스 이용이 가능합니다.
+                </p>
+                <p>
+                  <strong className="text-[#a48cd1] font-bold">🔄 유효기간 및 환불 : </strong>
+                  본 이용권의 유효기간은 구매일로부터 90일입니다. 구매 후 7일 이내 미사용 시 전액 환불 가능하며, 부분 환불 시 적용된 할인가가 아닌 &apos;1회권 정상가&apos; 기준으로 사용분이 공제되고 결제 금액의 10%가 위약금으로 발생합니다.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       )}
