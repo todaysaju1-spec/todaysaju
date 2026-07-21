@@ -1130,7 +1130,7 @@ const handlePremiumClick = async () => {
 </h3>
               </div>
               
-              <div className="text-gray-300 text-xs md:text-sm leading-relaxed mb-4 whitespace-pre-wrap">
+              <div className="text-gray-200 text-base md:text-[17px] leading-[1.8] tracking-wide mb-6 whitespace-pre-wrap">
         {sajuResultText.replaceAll("**", "")}
       </div>
 
@@ -1176,7 +1176,7 @@ const handlePremiumClick = async () => {
               {followUpResult && !isFollowUpLoading && (
                 <div className="bg-[#0a0514] border border-[#D4AF37]/40 rounded-xl p-5 shadow-[0_0_15px_rgba(212,175,55,0.1)] animate-in fade-in zoom-in-95">
                   <p className="text-xs font-bold text-[#D4AF37] mb-3 pb-2 border-b border-[#D4AF37]/20">💡 {selectedQuestion}</p>
-                  <div className="text-gray-300 text-xs md:text-sm leading-relaxed whitespace-pre-wrap">
+                  <div className="text-gray-200 text-base md:text-[17px] leading-[1.8] tracking-wide whitespace-pre-wrap">
                     {followUpResult}
                   </div>
                   
@@ -1891,7 +1891,7 @@ const handlePremiumClick = async () => {
                   <p className="text-xs text-[#a48cd1] mb-5">
                     {new Date(selectedHistory.created_at).toLocaleString('ko-KR', { year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' })}
                   </p>
-                  <div className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap bg-[#0a0514] p-5 rounded-2xl border border-[#3b1d6b]">
+                  <div className="text-base md:text-[17px] text-gray-200 leading-[1.8] tracking-wide whitespace-pre-wrap bg-[#0a0514] p-5 md:p-6 rounded-2xl border border-[#3b1d6b]">
                     {selectedHistory.content}
                   </div>
                 </div>
