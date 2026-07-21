@@ -35,6 +35,7 @@ export default function AdminDashboard() {
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [userCharges, setUserCharges] = useState<any[]>([]);
   const [userSajus, setUserSajus] = useState<any[]>([]);
+  const [expandedSajuIds, setExpandedSajuIds] = useState<string[]>([]);
   const [isUserDetailLoading, setIsUserDetailLoading] = useState(false);
   const [detailTab, setDetailTab] = useState<"charges" | "sajus">("charges");
 
@@ -177,6 +178,7 @@ export default function AdminDashboard() {
     setDetailTab("charges");
     setUserCharges([]);
     setUserSajus([]);
+    setExpandedSajuIds([]);
     setIsUserDetailLoading(true);
 
     const chargesResult = await supabase
@@ -228,6 +230,7 @@ export default function AdminDashboard() {
     setSelectedUser(null);
     setUserCharges([]);
     setUserSajus([]);
+    setExpandedSajuIds([]);
     setDetailTab("charges");
     setIsUserDetailLoading(false);
   };
@@ -635,9 +638,28 @@ export default function AdminDashboard() {
                         </span>
                       </div>
                       {saju.content && (
-                        <p className="text-sm text-gray-300 line-clamp-3 whitespace-pre-wrap">
-                          {saju.content}
-                        </p>
+                        <>
+                          <p
+                            className={`text-sm text-gray-300 whitespace-pre-wrap ${
+                              expandedSajuIds.includes(saju.id) ? "" : "line-clamp-3"
+                            }`}
+                          >
+                            {saju.content}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedSajuIds((prev) =>
+                                prev.includes(saju.id)
+                                  ? prev.filter((id) => id !== saju.id)
+                                  : [...prev, saju.id]
+                              )
+                            }
+                            className="mt-2 text-xs font-bold text-[#D4AF37] hover:text-[#F3E5AB] transition-colors"
+                          >
+                            {expandedSajuIds.includes(saju.id) ? "접기" : "더보기"}
+                          </button>
+                        </>
                       )}
                     </div>
                   ))}
