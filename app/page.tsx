@@ -5,6 +5,9 @@ import { Sparkles, Lock, Wallet, ArrowRight, Star, Moon, Compass, CheckCircle2, 
 import { supabase } from "@/lib/supabase"; // Supabase 연동 클라이언트
 import { calculateSaju } from "ssaju";
 
+const PORTONE_STORE_ID = "store-252438e8-5d98-47ec-b2a6-e040643cf1a6";
+const PORTONE_CHANNEL_KEY = "channel-key-fd3937f3-b47f-4de6-9a08-16c085c44f46";
+
 export default function TodaySajuLanding() {
   // 화면 전환 스테이트: 로그인전 -> 정보입력 -> 분석중 -> 결과창(무료+꼬리질문)
   const [step, setStep] = useState<"login" | "input" | "analyzing" | "result">("login");
@@ -285,6 +288,51 @@ const fetchMyHistory = async () => {
 
     handleCloseEmailLoginModal();
     setStep("input");
+  };
+
+  const handlePortOnePayment = async () => {
+    if (!selectedPackage) {
+      alert("결제할 상품을 먼저 선택해 주세요.");
+      return;
+    }
+
+    const passName = selectedPackage.category === "premium" ? "프리미엄 패스" : "스탠다드 패스";
+    const orderName = `[오늘의사주] ${passName} ${selectedPackage.label}`;
+
+    try {
+      const PortOne = await import("@portone/browser-sdk/v2");
+      const paymentId = `payment-${Date.now()}${Math.random().toString(36).slice(2, 11)}`;
+
+      const response = await PortOne.requestPayment({
+        storeId: PORTONE_STORE_ID,
+        channelKey: PORTONE_CHANNEL_KEY,
+        paymentId,
+        orderName,
+        totalAmount: selectedPackage.price,
+        currency: "CURRENCY_KRW",
+        payMethod: "CARD",
+      });
+
+      if (response.code !== undefined) {
+        const message = response.message || "";
+        const isCancelled =
+          response.code === "FAILURE_TYPE_USER_CANCEL" ||
+          message.includes("취소") ||
+          message.toLowerCase().includes("cancel");
+
+        if (isCancelled) {
+          alert("결제가 취소되었습니다.");
+        } else {
+          alert(`결제 실패: ${message || response.code}`);
+        }
+        return;
+      }
+
+      alert(`✅ 결제가 성공적으로 완료되었습니다!\n주문번호: ${response.paymentId || paymentId}`);
+    } catch (err) {
+      console.error("PortOne 결제 에러:", err);
+      alert("결제 처리 중 오류가 발생했습니다.");
+    }
   };
   // ── 사주 분석 시작 ──
 
@@ -1511,9 +1559,19 @@ const handlePremiumClick = async () => {
               </div>
             </div>
 
+            {/* 포트원 KCP 결제 */}
+            <button
+              type="button"
+              onClick={handlePortOnePayment}
+              className="w-full py-3.5 mb-2 bg-gradient-to-r from-[#44237d] to-[#1a0b2e] border-2 border-[#D4AF37] text-[#D4AF37] rounded-xl text-sm font-extrabold hover:border-[#F3E5AB] hover:shadow-[0_0_15px_rgba(212,175,55,0.25)] transition-all"
+            >
+              💳 카드 결제하기
+            </button>
+
             {/* 입금자명 입력 및 계좌 안내 (패키지를 선택했을 때만 보임) */}
             {selectedPackage && (
               <div className="animate-in slide-in-from-top-2">
+                <h4 className="text-sm font-bold text-white mb-3 mt-5 pt-5 border-t border-[#3b1d6b]">💸 계좌이체 (무통장 입금)</h4>
                 <div className="mb-4">
                   <input
                     type="text"

@@ -35,11 +35,11 @@ export default function Footer() {
             {/* 사업자 정보 */}
             <div className="space-y-2">
               <p className="font-semibold text-white text-base">플럭스미디어</p>
-              <p><strong>대표자:</strong> 이동희</p>
+              <p><strong>대표:</strong> 이동희</p>
               <p><strong>사업자등록번호:</strong> 522-26-02380</p>
               <p><strong>통신판매업신고:</strong> 2026-부천소사-0565</p>
               <p><strong>사업장:</strong> 경기도 부천시 소사구 소사로 257, 6층 C59호(태한빌딩)</p>
-              <p><strong>고객센터:</strong> 010-7979-3621 | <strong>이메일:</strong> todaysaju1@gmail.com</p>
+              <p><strong>고객센터:</strong> 010-7979-3621 | <strong>이메일:</strong> fluxmedia20@naver.com</p>
               <p className="mt-2">
                 <a 
                   href="http://pf.kakao.com/_MbvfX/chat" 
