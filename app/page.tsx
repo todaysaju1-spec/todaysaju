@@ -50,6 +50,9 @@ const [partnerInfo, setPartnerInfo] = useState({
 // 어떤 메뉴를 얼마에 결제할지 담아두는 '장바구니' 역할입니다.
 const [pendingPayment, setPendingPayment] = useState<any>(null); 
 const [showGuestModal, setShowGuestModal] = useState(false);
+const [showEmailLoginModal, setShowEmailLoginModal] = useState(false);
+const [emailInput, setEmailInput] = useState("");
+const [passwordInput, setPasswordInput] = useState("");
 // 🗂️ 보관함 전용 상태 모음
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyList, setHistoryList] = useState<any[]>([]);
@@ -256,58 +259,32 @@ const fetchMyHistory = async () => {
     }
   };
 
-  const TEST_LOGIN_EMAIL = "sajutest@sajutest.com";
-  const TEST_LOGIN_PASSWORD = "sajutest123!";
+  const handleCloseEmailLoginModal = () => {
+    setShowEmailLoginModal(false);
+    setEmailInput("");
+    setPasswordInput("");
+  };
 
-  const handleTestLogin = async () => {
-    try {
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email: TEST_LOGIN_EMAIL,
-        password: TEST_LOGIN_PASSWORD,
-      });
+  const handleEmailLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-      if (!signInError && signInData.session) {
-        setStep("input");
-        return;
-      }
-
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: TEST_LOGIN_EMAIL,
-        password: TEST_LOGIN_PASSWORD,
-        options: {
-          data: { name: "카드사/심사자 테스트" },
-        },
-      });
-
-      if (signUpError) {
-        alert("테스트 로그인 실패: " + signUpError.message);
-        return;
-      }
-
-      if (signUpData.session) {
-        setStep("input");
-        return;
-      }
-
-      const { data: retryData, error: retryError } = await supabase.auth.signInWithPassword({
-        email: TEST_LOGIN_EMAIL,
-        password: TEST_LOGIN_PASSWORD,
-      });
-
-      if (retryError) {
-        alert("테스트 로그인 실패: " + retryError.message);
-        return;
-      }
-
-      if (retryData.session) {
-        setStep("input");
-      } else {
-        alert("테스트 로그인 실패: 세션을 생성하지 못했습니다.");
-      }
-    } catch (err) {
-      console.error("테스트 로그인 에러:", err);
-      alert("테스트 로그인 중 오류가 발생했습니다.");
+    if (!emailInput.trim() || !passwordInput) {
+      alert("이메일과 비밀번호를 입력해 주세요.");
+      return;
     }
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: emailInput.trim(),
+      password: passwordInput,
+    });
+
+    if (error || !data.session) {
+      alert("이메일 또는 비밀번호가 일치하지 않습니다.");
+      return;
+    }
+
+    handleCloseEmailLoginModal();
+    setStep("input");
   };
   // ── 사주 분석 시작 ──
 
@@ -780,13 +757,13 @@ const handlePremiumClick = async () => {
                       <span>Google 계정으로 시작</span>
                     </button>
 
-                    {/* 테스트 로그인 버튼 (카드사/심사용) */}
+                    {/* 이메일 로그인 버튼 */}
                     <button
-                      onClick={handleTestLogin}
+                      onClick={() => setShowEmailLoginModal(true)}
                       className="w-full flex items-center justify-center gap-2 bg-[#1c0d33] hover:bg-[#2a144a] border border-[#D4AF37]/50 hover:border-[#D4AF37] text-[#D4AF37] text-sm font-bold py-3.5 rounded-xl transition-all shadow-[0_0_10px_rgba(212,175,55,0.08)]"
                     >
-                      <span>🧪</span>
-                      <span>카드사/심사자 테스트 로그인</span>
+                      <span>✉️</span>
+                      <span>이메일 계정으로 시작</span>
                     </button>
                   </div>
                 )}
@@ -1622,6 +1599,60 @@ const handlePremiumClick = async () => {
      
       {/* ---------------------------------------------------- */}
       {/* ---------------------------------------------------- */}
+      {/* ✉️ [모달] 이메일 로그인 */}
+      {showEmailLoginModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[100] flex items-center justify-center p-5 animate-in fade-in">
+          <div className="bg-[#120524] border border-[#D4AF37]/50 w-full max-w-sm rounded-3xl p-6 shadow-2xl relative">
+            <h3 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB] text-center mb-1">
+              ✉️ 이메일 로그인
+            </h3>
+            <p className="text-xs text-[#a48cd1] text-center mb-6">등록된 이메일과 비밀번호를 입력해 주세요.</p>
+
+            <form onSubmit={handleEmailLoginSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm text-[#a48cd1] mb-1.5 ml-1">이메일</label>
+                <input
+                  type="email"
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                  placeholder="example@email.com"
+                  className="w-full bg-[#0a0514] border border-[#3b1d6b] rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-[#D4AF37] transition-colors"
+                  autoFocus
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-[#a48cd1] mb-1.5 ml-1">비밀번호</label>
+                <input
+                  type="password"
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  placeholder="비밀번호 입력"
+                  className="w-full bg-[#0a0514] border border-[#3b1d6b] rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-[#D4AF37] transition-colors"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={handleCloseEmailLoginModal}
+                  className="flex-1 py-3 bg-[#1c0d33] text-[#a48cd1] rounded-xl text-sm font-bold hover:bg-[#2a144a] transition-colors"
+                >
+                  닫기
+                </button>
+                <button
+                  type="submit"
+                  className="flex-[2] py-3 bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] rounded-xl text-sm font-extrabold hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all"
+                >
+                  로그인
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* 🎁 [모달] 비회원 로그인 유도 (1회권 삭제, 무조건 가입 유도) */}
       {showGuestModal && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[100] flex items-center justify-center p-5 animate-in fade-in">
