@@ -1871,16 +1871,26 @@ const handlePremiumClick = async () => {
           <div className="bg-[#120524] border border-[#D4AF37]/50 w-full max-w-md max-h-[85vh] rounded-3xl flex flex-col shadow-2xl relative overflow-hidden">
             
             {/* 헤더 */}
-            <div className="p-5 border-b border-[#3b1d6b] flex justify-between items-center bg-[#0a0514]">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                🗂️ 사주 보관함
-              </h3>
-              <button 
-                onClick={() => { setShowHistoryModal(false); setSelectedHistory(null); }} 
-                className="text-gray-400 hover:text-white text-3xl font-light leading-none"
-              >
-                ×
-              </button>
+            <div className="p-5 border-b border-[#3b1d6b] bg-[#0a0514]">
+              <div className="flex justify-between items-center mb-2">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    🗂️ 사주 보관함
+                  </h3>
+                  <span className="text-[10px] sm:text-xs text-red-400 bg-red-400/10 px-2 py-0.5 rounded-md border border-red-400/20">
+                    ⚠️ 60일 후 자동 삭제
+                  </span>
+                </div>
+                <button 
+                  onClick={() => { setShowHistoryModal(false); setSelectedHistory(null); }} 
+                  className="text-gray-400 hover:text-white text-3xl font-light leading-none"
+                >
+                  ×
+                </button>
+              </div>
+              <p className="text-xs text-gray-400 break-keep">
+                평생 소장을 원하시면 100페이지 분량의 <strong className="text-[#D4AF37]">👑 VIP 프리미엄 사주(PDF 제공)</strong>를 이용해 보세요.
+              </p>
             </div>
 
             {/* 본문 영역 (스크롤 가능) */}
