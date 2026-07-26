@@ -192,7 +192,7 @@ const handleLogout = async () => {
   alert("로그아웃 되었습니다.");
 };
 
-// 💾 [추가] 사주 결과를 DB에 몰래 저장하는 마법의 함수
+// 💾 [사주 기록] 분석 결과를 saju_history에 새 행으로 INSERT (계정 프로필과 무관)
 const saveSajuHistory = async (type: string, title: string, content: string) => {
   if (!user) return; // 로그인 안 했으면 패스
   const { error } = await supabase.from('saju_history').insert({
@@ -202,6 +202,44 @@ const saveSajuHistory = async (type: string, title: string, content: string) => 
     content: content
   });
   if (error) console.error("사주 내역 저장 실패:", error);
+};
+
+// 👤 [회원 정보] 내 계정 프로필(user_profiles) 저장
+// 지인 사주를 볼 때 입력한 이름/생년월일이 내 프로필을 덮어쓰지 않도록,
+// 저장된 프로필이 없거나(최초 1회) 저장된 이름과 동일할 때(=본인 명식)만 반영합니다.
+const saveMyProfile = async (userId: string) => {
+  const { data: existingProfile } = await supabase
+    .from('user_profiles')
+    .select('display_name, birth_date')
+    .eq('id', userId)
+    .maybeSingle();
+
+  const isFirstTime = !existingProfile?.birth_date;
+  const isOwnerInfo = existingProfile?.display_name === userInfo.name;
+
+  // 이미 내 명식이 저장되어 있는데 다른 사람 이름이 입력된 경우 → 프로필 그대로 유지
+  if (!isFirstTime && !isOwnerInfo) return;
+
+  const { error } = await supabase.from('user_profiles').upsert({
+    id: userId,
+    tenant_id: "client_a",
+    display_name: userInfo.name,
+    birth_date: userInfo.birth,
+    birth_hour: userInfo.hour,
+    birth_min: userInfo.min,
+    gender: userInfo.gender,
+    partner_name: showPartner ? partnerInfo.name : null,
+    partner_birth: showPartner ? partnerInfo.birth : null,
+    partner_gender: showPartner ? partnerInfo.gender : null,
+    partner_hour: showPartner ? partnerInfo.hour : null,
+    partner_min: showPartner ? partnerInfo.min : null,
+    partner_calendar_type: showPartner ? partnerInfo.calendarType : null,
+    partner_is_time_known: showPartner ? partnerInfo.isTimeKnown : false
+  });
+
+  if (error) {
+    console.error("프로필 저장 에러 상세 내역:", error);
+  }
 };
 
 // 🗂️ [수정] DB에서 내 사주 기록을 가져오는 함수 (안전성 강화 버전)
@@ -354,31 +392,11 @@ const fetchMyHistory = async () => {
   setLoadingText("명식(命式)을 세우고 타고난 기운의 흐름을 짚어보고 있습니다.\n(예상 소요 시간: 1~2분)");
 
   try {
-    // 1. Supabase 유저 데이터 저장
+    // 1. 회원 정보(user_profiles)는 본인 명식일 때만 저장 — 지인 사주 입력값으로 덮어쓰지 않음
     const { data: { session } } = await supabase.auth.getSession();
-    const currentTenantId = "client_a";
 
     if (session?.user) {
-      const { error } = await supabase.from('user_profiles').upsert({
-        id: session.user.id,
-        tenant_id: currentTenantId,
-        display_name: userInfo.name,
-        birth_date: userInfo.birth,
-        birth_hour: userInfo.hour,
-        birth_min: userInfo.min,
-        gender: userInfo.gender,
-        partner_name: showPartner ? partnerInfo.name : null,
-partner_birth: showPartner ? partnerInfo.birth : null,
-partner_gender: showPartner ? partnerInfo.gender : null,
-partner_hour: showPartner ? partnerInfo.hour : null,
-partner_min: showPartner ? partnerInfo.min : null,
-partner_calendar_type: showPartner ? partnerInfo.calendarType : null,
-partner_is_time_known: showPartner ? partnerInfo.isTimeKnown : false
-      });
-      if (error) {
-        console.error("DB 저장 에러 상세 내역:", error);
-        alert(`DB 에러 발생! 원인: ${error.message} \n상세: ${error.details}`);
-      }
+      await saveMyProfile(session.user.id);
     }
 
     // 2. ssaju를 이용해 프론트엔드에서 즉시 만세력 계산
