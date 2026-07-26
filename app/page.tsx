@@ -1907,7 +1907,7 @@ const handlePremiumClick = async () => {
                 </button>
               </div>
               <p className="text-xs text-gray-400 break-keep">
-                평생 소장을 원하시면 100페이지 분량의 <strong className="text-[#D4AF37]">👑 VIP 프리미엄 사주(PDF 제공)</strong>를 이용해 보세요.
+              분석된 운세 결과는 이곳에 안전하게 보관되며, 언제든 다시 꺼내보실 수 있습니다.
               </p>
             </div>
 
