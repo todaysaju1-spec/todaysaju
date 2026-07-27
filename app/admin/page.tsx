@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { CheckCircle2, Wallet, Users, CreditCard, Lock, X } from "lucide-react";
+import { CheckCircle2, Wallet, Users, CreditCard, Lock, X, TrendingUp } from "lucide-react";
 
 const ADMIN_PASSWORD_KEY = "admin_password";
 const DEFAULT_PASSWORD = "flux1234!";
@@ -24,7 +24,10 @@ export default function AdminDashboard() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordChangeError, setPasswordChangeError] = useState("");
 
-  const [activeTab, setActiveTab] = useState<"deposits" | "users">("deposits");
+  const [activeTab, setActiveTab] = useState<"deposits" | "users" | "statistics">("deposits");
+  
+  const [stats, setStats] = useState<any>(null);
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
 
   const [users, setUsers] = useState<any[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
@@ -51,6 +54,7 @@ export default function AdminDashboard() {
     if (!isAuthenticated) return;
     if (activeTab === "users") fetchUsers();
     if (activeTab === "deposits") fetchRequests();
+    if (activeTab === "statistics") fetchStatistics();
   }, [activeTab, isAuthenticated]);
 
   const getStoredPassword = () => {
@@ -163,6 +167,53 @@ export default function AdminDashboard() {
     if (error) console.error("입금 내역 에러:", error);
     else setRequests(data || []);
     setLoadingRequests(false);
+  };
+
+  const fetchStatistics = async () => {
+    setIsLoadingStats(true);
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // 1. 유저 데이터 가져오기
+      const { data: usersData } = await supabase.from("user_profiles").select("created_at, standard_ticket, premium_ticket");
+      
+      // 2. 매출 데이터 가져오기 (완료된 건만)
+      const { data: depositsData } = await supabase.from("deposit_requests").select("amount_krw, created_at").eq("status", "completed");
+      
+      // 3. 사주 조회 기록 가져오기
+      const { data: historyData } = await supabase.from("saju_history").select("title, created_at");
+
+      // --- 지표 계산 ---
+      const totalUsers = usersData?.length || 0;
+      const todayUsers = usersData?.filter((u: any) => new Date(u.created_at) >= today).length || 0;
+
+      const totalStandard = usersData?.reduce((sum: number, u: any) => sum + (u.standard_ticket || 0), 0) || 0;
+      const totalPremium = usersData?.reduce((sum: number, u: any) => sum + (u.premium_ticket || 0), 0) || 0;
+
+      const totalRevenue = depositsData?.reduce((sum: number, d: any) => sum + (d.amount_krw || 0), 0) || 0;
+      const todayRevenue = depositsData?.filter((d: any) => new Date(d.created_at) >= today).reduce((sum: number, d: any) => sum + (d.amount_krw || 0), 0) || 0;
+
+      const todayViews = historyData?.filter((h: any) => new Date(h.created_at) >= today).length || 0;
+
+      const menuCount: Record<string, number> = {};
+      historyData?.forEach((h: any) => {
+        if (h.title) {
+          menuCount[h.title] = (menuCount[h.title] || 0) + 1;
+        }
+      });
+      const popularMenus = Object.entries(menuCount)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5);
+
+      setStats({
+        totalUsers, todayUsers, totalRevenue, todayRevenue, totalStandard, totalPremium, todayViews, popularMenus
+      });
+    } catch (error) {
+      console.error("통계 에러:", error);
+    } finally {
+      setIsLoadingStats(false);
+    }
   };
 
   const handleUserClick = async (user: any) => {
@@ -366,6 +417,16 @@ export default function AdminDashboard() {
             >
               <Users size={18} /> 전체 회원 관리
             </button>
+            <button
+              onClick={() => setActiveTab("statistics")}
+              className={`flex items-center gap-2 px-6 py-3 rounded-t-xl font-bold transition-all ${
+                activeTab === "statistics"
+                  ? "bg-[#1c0d33] border-t border-l border-r border-[#D4AF37] text-[#D4AF37]"
+                  : "bg-transparent text-gray-400 hover:text-white"
+              }`}
+            >
+              <TrendingUp size={18} /> 실시간 통계
+            </button>
           </div>
         </div>
 
@@ -508,6 +569,73 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+        {/* 탭 3: 실시간 통계 대시보드 화면 */}
+        {activeTab === "statistics" && (
+          <div className="bg-[#15072a]/90 backdrop-blur-xl rounded-b-2xl rounded-tr-2xl border border-[#3b1d6b] p-6 shadow-2xl animate-in fade-in duration-300">
+            <div className="flex justify-between items-center mb-6 pb-4 border-b border-[#3b1d6b]">
+              <h2 className="text-xl font-bold text-[#a48cd1] flex items-center gap-2">
+                <TrendingUp className="text-[#D4AF37]" /> 오늘의 비즈니스 인사이트
+              </h2>
+              <button onClick={fetchStatistics} className="text-xs bg-[#D4AF37]/20 text-[#D4AF37] px-3 py-1.5 rounded hover:bg-[#D4AF37]/30">
+                🔄 데이터 새로고침
+              </button>
+            </div>
+
+            {isLoadingStats || !stats ? (
+              <div className="py-12 text-center text-gray-400 animate-pulse">실시간 지표를 불러오는 중입니다...</div>
+            ) : (
+              <div className="space-y-6">
+                {/* KPI 카드 4개 */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-[#1c0d33] border border-[#3b1d6b] p-5 rounded-xl">
+                    <p className="text-xs text-gray-400 mb-1">오늘 입금 확인 (매출)</p>
+                    <p className="text-2xl font-black text-[#D4AF37] mb-1">{stats.todayRevenue.toLocaleString()}원</p>
+                    <p className="text-xs text-[#a48cd1]">누적: {stats.totalRevenue.toLocaleString()}원</p>
+                  </div>
+                  <div className="bg-[#1c0d33] border border-[#3b1d6b] p-5 rounded-xl">
+                    <p className="text-xs text-gray-400 mb-1">오늘 신규 가입자</p>
+                    <p className="text-2xl font-black text-white mb-1">+{stats.todayUsers}명</p>
+                    <p className="text-xs text-[#a48cd1]">총 회원: {stats.totalUsers}명</p>
+                  </div>
+                  <div className="bg-[#1c0d33] border border-[#3b1d6b] p-5 rounded-xl">
+                    <p className="text-xs text-gray-400 mb-1">오늘 발생한 사주 풀이</p>
+                    <p className="text-2xl font-black text-pink-400 mb-1">{stats.todayViews}건</p>
+                    <p className="text-xs text-[#a48cd1]">유저 활동량 (서버 사용량)</p>
+                  </div>
+                  <div className="bg-[#1c0d33] border border-[#3b1d6b] p-5 rounded-xl">
+                    <p className="text-xs text-gray-400 mb-1">유저 보유 티켓 잔고</p>
+                    <p className="text-2xl font-black text-white mb-1">
+                      <span className="text-gray-300 text-lg">S {stats.totalStandard}</span> / <span className="text-[#D4AF37] text-lg">P {stats.totalPremium}</span>
+                    </p>
+                    <p className="text-xs text-[#a48cd1]">스탠다드 / 프리미엄</p>
+                  </div>
+                </div>
+
+                {/* 인기 사주 메뉴 TOP 5 */}
+                <div className="bg-[#1c0d33]/50 border border-[#3b1d6b] rounded-xl p-5">
+                  <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">🔥 가장 인기 있는 메뉴 TOP 5</h3>
+                  <div className="space-y-2">
+                    {stats.popularMenus.length > 0 ? (
+                      stats.popularMenus.map(([title, count]: [string, number], index: number) => (
+                        <div key={title} className="flex justify-between items-center bg-[#15072a] p-3 rounded-lg border border-[#3b1d6b]/50">
+                          <div className="flex items-center gap-3">
+                            <span className={`font-bold w-4 text-center ${index === 0 ? 'text-[#D4AF37]' : 'text-gray-500'}`}>
+                              {index + 1}
+                            </span>
+                            <span className="text-sm text-gray-200">{title}</span>
+                          </div>
+                          <span className="text-xs font-bold text-[#a48cd1] bg-[#3b1d6b]/30 px-2 py-1 rounded">{count}회 조회</span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-500 text-center py-4">아직 사주 조회 기록이 없습니다.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
