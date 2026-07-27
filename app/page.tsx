@@ -777,8 +777,8 @@ const handlePremiumClick = async () => {
                 {/* 메인 타이틀 크기 대폭 확대 */}
                {/* 메인 타이틀 줄바꿈 및 가독성 최적화 */}
                <h1 className="text-3xl sm:text-4xl md:text-5xl font-light leading-snug text-white tracking-wide pt-2 break-keep">
-                  <span className="inline-block">우주의 궤도에서 읽는</span><br />
-                  <span className="font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] via-[#F0D060] to-[#D4AF37] inline-block mt-2">당신의 진짜 운명</span>
+                  <span className="inline-block">나의 가장 궁금한 답</span><br />
+                  <span className="font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] via-[#F0D060] to-[#D4AF37] inline-block mt-2">사주에서 찾습니다</span>
                 </h1>
                 
                 {/* 서브 텍스트 크기 확대 */}
