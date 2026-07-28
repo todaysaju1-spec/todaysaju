@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     siteName: "오늘의사주 PRO",
     images: [
       {
-        url: "/og-image.png", // public 폴더에 넣어둘 이미지 이름
+        url: "/og-image.png",
         width: 1200,
         height: 630,
         alt: "오늘의사주 PRO",
@@ -36,6 +36,9 @@ export const metadata: Metadata = {
   },
   verification: {
     google: "2x_x4FX8Dvqut0yda4goUJ_4pWnVAz8Gvb2RPseR4Nk",
+    other: {
+      "naver-site-verification": "412eec99de5873c071354350515f6e355c1a011c", // 👈 네이버 코드가 안전하게 추가되었습니다!
+    },
   },
 };
 
