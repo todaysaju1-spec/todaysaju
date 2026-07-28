@@ -16,12 +16,12 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "오늘의사주 PRO - 소름 돋게 정확한 명리학 & 타로",
-  description: "30년 경력 명리학자도 인정한 바로 보는 프리미엄 사주! 나의 오늘 운세, 재물운, 연애운부터 정통 명리학 풀이까지 지금 바로 확인해보세요.",
+  description: "30년 경력 명리학자가 인정한 바로 보는 프리미엄 사주! 나의 오늘 운세, 재물운, 연애운부터 정통 명리학 풀이까지 지금 바로 확인하세요.",
   keywords: ["사주", "오늘의사주", "사주팔자", "명리학", "타로", "운세", "재물운", "연애운", "궁합"],
   openGraph: {
     title: "오늘의사주 PRO - 소름 돋게 정확한 명리학 & 타로",
-    description: "30년 경력 명리학자가 인정한 바로 보는 프리미엄 사주 바로 보는 프리미엄 사주! 나의 오늘 운세, 재물운, 연애운을 확인해보세요.",
-    url: "https://todaysaju-six.vercel.app", // 대표님 실제 배포 주소
+    description: "30년 경력 명리학자가 인정한 바로 보는 프리미엄 사주! 나의 오늘 운세, 재물운, 연애운을 확인해보세요.",
+    url: "https://todaysajupro.com",
     siteName: "오늘의사주 PRO",
     images: [
       {
@@ -33,6 +33,9 @@ export const metadata: Metadata = {
     ],
     locale: "ko_KR",
     type: "website",
+  },
+  verification: {
+    google: "2x_x4FX8Dvqut0yda4goUJ_4pWnVAz8Gvb2RPseR4Nk",
   },
 };
 
