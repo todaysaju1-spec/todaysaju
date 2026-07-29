@@ -53,6 +53,9 @@ const [partnerInfo, setPartnerInfo] = useState({
 // 어떤 메뉴를 얼마에 결제할지 담아두는 '장바구니' 역할입니다.
 const [pendingPayment, setPendingPayment] = useState<any>(null); 
 const [showGuestModal, setShowGuestModal] = useState(false);
+// 🎟️ 오늘의 무료 사주 중복 사용 시 티켓 차감 모달
+const [isAlreadyUsedModalOpen, setIsAlreadyUsedModalOpen] = useState(false);
+const [isTicketProcessing, setIsTicketProcessing] = useState(false);
 const [showEmailLoginModal, setShowEmailLoginModal] = useState(false);
 const [emailInput, setEmailInput] = useState("");
 const [passwordInput, setPasswordInput] = useState("");
@@ -380,6 +383,31 @@ const fetchMyHistory = async () => {
     }
   };
   // ── 사주 분석 시작 ──
+
+// 🎟️ 오늘의 무료 사주를 이미 사용한 경우, 스탠다드 티켓 1장을 차감하고 다시 분석
+const handleUseTicketAndRetry = async () => {
+  if (!user) return;
+  if (standardTicket < 1) {
+    alert("스탠다드 티켓이 부족합니다. 이용권을 구매해 주세요!");
+    setIsAlreadyUsedModalOpen(false);
+    setShowChargeModal(true);
+    return;
+  }
+  try {
+    setIsTicketProcessing(true);
+    const newTicketCount = standardTicket - 1;
+    const { error } = await supabase.from("user_profiles").update({ standard_ticket: newTicketCount }).eq("id", user.id);
+    if (error) throw error;
+    setStandardTicket(newTicketCount);
+    setIsAlreadyUsedModalOpen(false);
+    await handleAnalyze();
+  } catch (error) {
+    console.error("티켓 사용 에러:", error);
+    alert("티켓 차감 중 오류가 발생했습니다.");
+  } finally {
+    setIsTicketProcessing(false);
+  }
+};
 
  // --- 사주 분석 시작 (B2B 화이트라벨 DB 연동 + ssaju + n8n) ---
  const handleAnalyze = async () => {
@@ -1079,9 +1107,8 @@ const handlePremiumClick = async () => {
                   const isMyInfo = data && data.display_name === userInfo.name && data.birth_date === userInfo.birth;
 
                   if (isMyInfo) {
-                    // 내 정보 그대로 다시 누른 경우 -> 보관함으로 안내 (API 비용 방어)
-                    alert("오늘의 무료 운세는 이미 발급되었습니다.\n보관함에서 다시 확인해 주세요!");
-                    fetchMyHistory();
+                    // 내 정보 그대로 다시 누른 경우 -> 티켓 차감 안내 모달 오픈 (API 비용 방어)
+                    setIsAlreadyUsedModalOpen(true);
                     return;
                   } else {
                     // 이름이나 생일이 바뀐 경우 (타인 사주) -> 스탠다드 패스 1장 결제 대기열
@@ -1956,6 +1983,52 @@ const handlePremiumClick = async () => {
                   ))
                 )
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🎟️ [모달] 오늘의 무료 사주 중복 사용 → 티켓 차감 안내 */}
+      {isAlreadyUsedModalOpen && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[100] flex items-center justify-center p-5 animate-in fade-in">
+          <div className="bg-gradient-to-b from-[#15151a] to-[#0a0a0d] border border-[#D4AF37]/50 w-full max-w-sm rounded-3xl p-6 shadow-[0_0_30px_rgba(212,175,55,0.15)] relative">
+            <div className="text-center space-y-3">
+              <div className="text-4xl">🔮</div>
+              <h3 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB]">
+                오늘의 운세를 다시 보시겠습니까?
+              </h3>
+              <p className="text-sm text-gray-400 leading-relaxed">
+                오늘의 무료 운세는 이미 발급되었습니다.<br />
+                티켓을 사용하시면 새로운 풀이를 받아보실 수 있습니다.
+              </p>
+
+              <div className="bg-black/50 border border-[#D4AF37]/20 rounded-2xl px-4 py-3 mt-4">
+                <p className="text-xs text-gray-500">보유 스탠다드 티켓</p>
+                <p className="text-lg font-bold text-[#D4AF37]">🎟️ {standardTicket}장</p>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 mt-6">
+              <button
+                type="button"
+                onClick={handleUseTicketAndRetry}
+                disabled={isTicketProcessing}
+                className={`w-full py-3.5 rounded-xl text-sm font-extrabold transition-all ${
+                  isTicketProcessing
+                    ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                    : "bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#0a0a0d] hover:shadow-[0_0_18px_rgba(212,175,55,0.4)] hover:scale-[1.02] active:scale-[0.98]"
+                }`}
+              >
+                {isTicketProcessing ? "처리 중..." : "🎟️ 스탠다드 티켓 1장"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsAlreadyUsedModalOpen(false)}
+                disabled={isTicketProcessing}
+                className="w-full py-3 rounded-xl border border-white/10 text-gray-400 text-sm font-bold hover:text-white hover:border-white/30 transition-all disabled:opacity-50"
+              >
+                닫기
+              </button>
             </div>
           </div>
         </div>
