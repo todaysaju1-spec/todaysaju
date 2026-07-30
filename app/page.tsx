@@ -8,6 +8,39 @@ import { calculateSaju } from "ssaju";
 const PORTONE_STORE_ID = "store-252438e8-5d98-47ec-b2a6-e040643cf1a6";
 const PORTONE_CHANNEL_KEY = "channel-key-fd3937f3-b47f-4de6-9a08-16c085c44f46";
 
+const FREE_SAJU_TITLE = "오늘의 무료 사주";
+const FREE_SAJU_TYPE = "free";
+const FREE_SAJU_LIMIT_MESSAGE =
+  "오늘의 무료 사주는 하루에 한 번만 제공됩니다. [사주 보관함]에서 오늘 받은 운세를 다시 확인해 보세요! 🍀";
+
+const getKSTDayBounds = () => {
+  const kstDateStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
+  return {
+    kstDateStr,
+    start: `${kstDateStr}T00:00:00+09:00`,
+    end: `${kstDateStr}T23:59:59.999+09:00`,
+  };
+};
+
+const hasTodayFreeSajuInDB = async (userId: string): Promise<boolean> => {
+  const { start, end } = getKSTDayBounds();
+  const { data, error } = await supabase
+    .from("saju_history")
+    .select("id, title, type")
+    .eq("user_id", userId)
+    .gte("created_at", start)
+    .lte("created_at", end);
+
+  if (error) {
+    console.error("무료 사주 중복 체크 에러:", error);
+    return false;
+  }
+
+  return (data ?? []).some(
+    (row) => row.title === FREE_SAJU_TITLE || row.type === FREE_SAJU_TYPE
+  );
+};
+
 export default function TodaySajuLanding() {
   // 화면 전환 스테이트: 로그인전 -> 정보입력 -> 분석중 -> 결과창(무료+꼬리질문)
   const [step, setStep] = useState<"login" | "input" | "analyzing" | "result">("login");
@@ -153,15 +186,12 @@ useEffect(() => {
     }
   };
 
-  // 💡 [새로 추가된 부분] 오늘 무료 사주를 봤는지 로컬 스토리지에서 확인하는 함수
-  const checkDailyFree = (userId: string) => {
-    const today = new Date().toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' });
-    const lastUsed = localStorage.getItem(`free_saju_${userId}`);
-    
-    if (lastUsed === today) {
-      setHasUsedDailyFree(true); // 오늘 이미 봤으면 true
-    } else {
-      setHasUsedDailyFree(false); // 안 봤으면 false
+  // 오늘 무료 사주 사용 여부 — saju_history DB(KST 당일) 기준
+  const syncDailyFreeStatus = async (userId: string) => {
+    const used = await hasTodayFreeSajuInDB(userId);
+    setHasUsedDailyFree(used);
+    if (used) {
+      localStorage.setItem(`free_saju_${userId}`, getKSTDayBounds().kstDateStr);
     }
   };
 
@@ -170,7 +200,7 @@ useEffect(() => {
     setUser(session?.user || null);
     if (session?.user) {
       fetchMyTickets(session.user.id);
-      checkDailyFree(session.user.id);
+      syncDailyFreeStatus(session.user.id);
     }
   });
 
@@ -179,7 +209,7 @@ useEffect(() => {
     setUser(session?.user || null);
     if (session?.user) {
       fetchMyTickets(session.user.id);
-      checkDailyFree(session.user.id);
+      syncDailyFreeStatus(session.user.id);
     } else {
       setStandardTicket(0);
       setPremiumTicket(0);
@@ -450,7 +480,7 @@ const handleUseTicketAndRetry = async () => {
     if (error) throw error;
     setStandardTicket(newTicketCount);
     setIsAlreadyUsedModalOpen(false);
-    await handleAnalyze();
+    await handleAnalyze({ skipFreeLimitCheck: true, saveAsTicketRetry: true });
   } catch (error) {
     console.error("티켓 사용 에러:", error);
     alert("티켓 차감 중 오류가 발생했습니다.");
@@ -460,10 +490,20 @@ const handleUseTicketAndRetry = async () => {
 };
 
  // --- 사주 분석 시작 (B2B 화이트라벨 DB 연동 + ssaju + n8n) ---
- const handleAnalyze = async () => {
+ const handleAnalyze = async (options?: { skipFreeLimitCheck?: boolean; saveAsTicketRetry?: boolean }) => {
   if (!userInfo.name || !userInfo.birth) {
     alert("이름과 생년월일을 정확히 입력해주세요!");
     return;
+  }
+
+  if (!options?.skipFreeLimitCheck && user) {
+    const alreadyUsed = await hasTodayFreeSajuInDB(user.id);
+    if (alreadyUsed) {
+      setHasUsedDailyFree(true);
+      localStorage.setItem(`free_saju_${user.id}`, getKSTDayBounds().kstDateStr);
+      alert(FREE_SAJU_LIMIT_MESSAGE);
+      return;
+    }
   }
 
   setStep("analyzing");
@@ -532,14 +572,19 @@ const handleUseTicketAndRetry = async () => {
       setStep("result");
       setHasUsedDailyFree(true);
       
-      // 💡 [추가] 브라우저에 오늘 날짜 도장 꽝!
-      const today = new Date().toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' });
+      const { kstDateStr } = getKSTDayBounds();
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        localStorage.setItem(`free_saju_${session.user.id}`, today);
+        localStorage.setItem(`free_saju_${session.user.id}`, kstDateStr);
       }
 
-      saveSajuHistory("free", "오늘의 무료 사주", data.result_text);
+      if (!options?.skipFreeLimitCheck) {
+        saveSajuHistory(FREE_SAJU_TYPE, FREE_SAJU_TITLE, data.result_text);
+      } else if (options.saveAsTicketRetry) {
+        saveSajuHistory("standard", "오늘의 운세 (티켓 재조회)", data.result_text);
+      } else {
+        saveSajuHistory("standard", `[${userInfo.name}]님의 일일 운세`, data.result_text);
+      }
     } else {
       alert("운세 서버 통신이 지연되고 있습니다. 다시 시도해주세요.");
       setStep("input");
@@ -1139,7 +1184,12 @@ const handlePremiumClick = async () => {
             
             {/* 분석 버튼 */}
             <button 
+              disabled={hasUsedDailyFree}
               onClick={async () => {
+                if (hasUsedDailyFree) {
+                  alert(FREE_SAJU_LIMIT_MESSAGE);
+                  return;
+                }
                 if (!isAgreed) {
                   return alert("서비스 이용을 위해 개인정보 수집 및 이용에 동의해 주세요.");
                 }
@@ -1148,36 +1198,14 @@ const handlePremiumClick = async () => {
                   return; 
                 }
 
-                // 타인 사주 보기 수익화 로직 적용
-                if (hasUsedDailyFree) {
-                  // 1. DB에 저장된 내 진짜 정보 가져오기
-                  const { data } = await supabase.from('user_profiles').select('display_name, birth_date').eq('id', user.id).single();
-                  
-                  // 2. 지금 입력창에 있는 정보와 내 DB 정보가 똑같은지 비교
-                  const isMyInfo = data && data.display_name === userInfo.name && data.birth_date === userInfo.birth;
-
-                  if (isMyInfo) {
-                    // 내 정보 그대로 다시 누른 경우 -> 티켓 차감 안내 모달 오픈 (API 비용 방어)
-                    setIsAlreadyUsedModalOpen(true);
-                    return;
-                  } else {
-                    // 이름이나 생일이 바뀐 경우 (타인 사주) -> 스탠다드 패스 1장 결제 대기열
-                    setPendingPayment({ 
-                      type: "other_saju", 
-                      title: `[${userInfo.name}]님의 일일 운세`, 
-                      payload: null 
-                    });
-                    return;
-                  }
-                } else {
-                  // 아직 오늘 무료 사주를 안 본 경우 -> 정상 실행
-                  await handleAnalyze();
-                }
+                await handleAnalyze();
               }}
-              className="w-full py-4 bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] font-extrabold rounded-2xl text-lg shadow-[0_0_20px_rgba(212,175,55,0.4)] transition-all hover:scale-[1.02] flex items-center justify-center gap-2"
+              className={`w-full py-4 bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] font-extrabold rounded-2xl text-lg shadow-[0_0_20px_rgba(212,175,55,0.4)] transition-all flex items-center justify-center gap-2 ${
+                hasUsedDailyFree ? "opacity-50 cursor-not-allowed" : "hover:scale-[1.02]"
+              }`}
             >
               {hasUsedDailyFree ? (
-                <>오늘의 운세 다시보기 ✨</>
+                <>오늘 조회 완료</>
               ) : (
                 <>오늘의 사주 무료보기 ✨</>
               )}
@@ -1951,7 +1979,7 @@ const handlePremiumClick = async () => {
                   } else if (action.type === "followup") {
                     handleFollowUp(action.payload);
                   } else if (action.type === "other_saju") {
-                    handleAnalyze();
+                    handleAnalyze({ skipFreeLimitCheck: true });
                   }
                 }} 
                 className="flex-[2] py-3 bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] rounded-xl font-bold text-sm shadow-[0_0_15px_rgba(212,175,55,0.3)] hover:brightness-110 transition-all"
