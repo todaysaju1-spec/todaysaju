@@ -97,6 +97,8 @@ const [passwordInput, setPasswordInput] = useState("");
         hour: data.birth_hour || "12",
         min: data.birth_min || "00",
         gender: data.gender || "남자",
+        maritalStatus: data.marital_status || "싱글",
+        hasChildren: data.has_children || "없음",
         isTimeKnown: data.birth_hour !== "99" // 99시(모름)가 아니면 시간 안다고 체크
       }));
     } else {
@@ -231,6 +233,8 @@ const saveMyProfile = async (userId: string) => {
     birth_hour: userInfo.hour,
     birth_min: userInfo.min,
     gender: userInfo.gender,
+    marital_status: userInfo.maritalStatus,
+    has_children: userInfo.hasChildren,
     partner_name: showPartner ? partnerInfo.name : null,
     partner_birth: showPartner ? partnerInfo.birth : null,
     partner_gender: showPartner ? partnerInfo.gender : null,
