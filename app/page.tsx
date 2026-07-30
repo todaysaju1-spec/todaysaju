@@ -350,6 +350,8 @@ const fetchMyHistory = async () => {
       const redirectUrl =
         typeof window !== "undefined" ? `${window.location.origin}/payment/redirect` : undefined;
 
+      sessionStorage.setItem("pending_payment_package", JSON.stringify(selectedPackage));
+
       const response = await PortOne.requestPayment({
         storeId: PORTONE_STORE_ID,
         channelKey: PORTONE_CHANNEL_KEY,
