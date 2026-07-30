@@ -61,6 +61,28 @@ function resolvePaymentPackage(): ResolvedPackage {
   };
 }
 
+async function savePaymentReceipt(
+  user: { id: string; email?: string | null; user_metadata?: { email?: string } },
+  pkg: ResolvedPackage,
+  paymentId: string
+) {
+  const { error: logError } = await supabase.from("payment_logs").insert({
+    user_id: user.id,
+    user_email: user.email || user.user_metadata?.email || "이메일 없음",
+    order_name: pkg.order_name,
+    amount_krw: pkg.amount_krw,
+    ticket_type: pkg.ticket_type,
+    ticket_count: pkg.ticket_count,
+    payment_id: paymentId,
+    pay_method: "CARD",
+    status: "PAID",
+  });
+
+  if (logError) {
+    console.error("결제 내역 로그 저장 실패:", logError);
+  }
+}
+
 function PaymentRedirectContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -141,21 +163,8 @@ function PaymentRedirectContent() {
           return;
         }
 
-        const { error: logError } = await supabase.from("payment_logs").insert({
-          user_id: user.id,
-          user_email: user.email || user.user_metadata?.email || "이메일 없음",
-          order_name: pkg.order_name,
-          amount_krw: pkg.amount_krw,
-          ticket_type: pkg.ticket_type,
-          ticket_count: pkg.ticket_count,
-          payment_id: paymentId,
-          pay_method: "CARD",
-          status: "PAID",
-        });
-
-        if (logError) {
-          console.error("결제 내역 로그 저장 실패:", logError);
-        }
+        // 티켓 충전 성공 직후 payment_logs에 결제 영수증 저장
+        await savePaymentReceipt(user, pkg, paymentId);
 
         sessionStorage.removeItem("pending_payment_package");
         alert(`✅ 결제가 완료되었습니다!\n[${pkg.label}] ${pkg.ticket_count}장이 충전되었습니다! 🎉`);
