@@ -194,8 +194,9 @@ export default function AdminDashboard() {
       // 1. 유저 데이터 가져오기
       const { data: usersData } = await supabase.from("user_profiles").select("created_at, standard_ticket, premium_ticket");
       
-      // 2. 매출 데이터 가져오기 (완료된 건만)
+      // 2. 매출 데이터 가져오기 (무통장 입금 완료 + 카드 결제 완료)
       const { data: depositsData } = await supabase.from("deposit_requests").select("amount_krw, created_at").eq("status", "completed");
+      const { data: cardPaymentsData } = await supabase.from("payment_logs").select("amount_krw, created_at").eq("status", "PAID");
       
       // 3. 사주 조회 기록 가져오기
       const { data: historyData } = await supabase.from("saju_history").select("title, created_at");
@@ -207,8 +208,14 @@ export default function AdminDashboard() {
       const totalStandard = usersData?.reduce((sum: number, u: any) => sum + (u.standard_ticket || 0), 0) || 0;
       const totalPremium = usersData?.reduce((sum: number, u: any) => sum + (u.premium_ticket || 0), 0) || 0;
 
-      const totalRevenue = depositsData?.reduce((sum: number, d: any) => sum + (d.amount_krw || 0), 0) || 0;
-      const todayRevenue = depositsData?.filter((d: any) => new Date(d.created_at) >= today).reduce((sum: number, d: any) => sum + (d.amount_krw || 0), 0) || 0;
+      const depositTotalRevenue = depositsData?.reduce((sum: number, d: any) => sum + (d.amount_krw || 0), 0) || 0;
+      const depositTodayRevenue = depositsData?.filter((d: any) => new Date(d.created_at) >= today).reduce((sum: number, d: any) => sum + (d.amount_krw || 0), 0) || 0;
+
+      const cardTotalRevenue = cardPaymentsData?.reduce((sum: number, p: any) => sum + (p.amount_krw || 0), 0) || 0;
+      const cardTodayRevenue = cardPaymentsData?.filter((p: any) => new Date(p.created_at) >= today).reduce((sum: number, p: any) => sum + (p.amount_krw || 0), 0) || 0;
+
+      const totalRevenue = depositTotalRevenue + cardTotalRevenue;
+      const todayRevenue = depositTodayRevenue + cardTodayRevenue;
 
       const todayViews = historyData?.filter((h: any) => new Date(h.created_at) >= today).length || 0;
 
@@ -680,9 +687,9 @@ export default function AdminDashboard() {
                 {/* KPI 카드 4개 */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="bg-[#1c0d33] border border-[#3b1d6b] p-5 rounded-xl">
-                    <p className="text-xs text-gray-400 mb-1">오늘 입금 확인 (매출)</p>
+                    <p className="text-xs text-gray-400 mb-1">오늘 입금/카드 매출</p>
                     <p className="text-2xl font-black text-[#D4AF37] mb-1">{stats.todayRevenue.toLocaleString()}원</p>
-                    <p className="text-xs text-[#a48cd1]">누적: {stats.totalRevenue.toLocaleString()}원</p>
+                    <p className="text-xs text-[#a48cd1]">누적 매출: {stats.totalRevenue.toLocaleString()}원</p>
                   </div>
                   <div className="bg-[#1c0d33] border border-[#3b1d6b] p-5 rounded-xl">
                     <p className="text-xs text-gray-400 mb-1">오늘 신규 가입자</p>
