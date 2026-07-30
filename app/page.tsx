@@ -380,7 +380,51 @@ const fetchMyHistory = async () => {
         return;
       }
 
-      alert(`✅ 결제가 성공적으로 완료되었습니다!\n주문번호: ${response.paymentId || paymentId}`);
+      const isPremium = selectedPackage.category === "premium";
+      const currentCount = isPremium ? premiumTicket : standardTicket;
+      const newCount = currentCount + selectedPackage.tickets;
+      const ticketField = isPremium ? "premium_ticket" : "standard_ticket";
+
+      if (user) {
+        const { error } = await supabase
+          .from("user_profiles")
+          .update({ [ticketField]: newCount })
+          .eq("id", user.id);
+
+        if (error) {
+          console.error("티켓 충전 DB 에러:", error);
+          alert("결제는 완료되었으나 티켓 반영 중 오류가 발생했습니다. 고객센터로 문의해주세요.");
+          return;
+        }
+      }
+
+      if (user) {
+        const { error: logError } = await supabase.from("payment_logs").insert({
+          user_id: user.id,
+          user_email: user.email || user.user_metadata?.email || "이메일 없음",
+          order_name: orderName,
+          amount_krw: selectedPackage.price,
+          ticket_type: selectedPackage.category,
+          ticket_count: selectedPackage.tickets,
+          payment_id: response.paymentId || paymentId,
+          pay_method: "CARD",
+          status: "PAID",
+        });
+
+        if (logError) {
+          console.error("결제 내역 로그 저장 실패:", logError);
+        }
+      }
+
+      if (isPremium) {
+        setPremiumTicket(newCount);
+      } else {
+        setStandardTicket(newCount);
+      }
+
+      alert(`✅ 결제가 완료되었습니다!\n[${selectedPackage.label}] ${selectedPackage.tickets}장이 충전되었습니다! 🎉`);
+      setShowChargeModal(false);
+      setSelectedPackage(null);
     } catch (err) {
       console.error("PortOne 결제 에러:", err);
       alert("결제 처리 중 오류가 발생했습니다.");

@@ -24,7 +24,7 @@ export default function AdminDashboard() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordChangeError, setPasswordChangeError] = useState("");
 
-  const [activeTab, setActiveTab] = useState<"deposits" | "users" | "statistics">("deposits");
+  const [activeTab, setActiveTab] = useState<"deposits" | "cardPayments" | "users" | "statistics">("deposits");
   
   const [stats, setStats] = useState<any>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
@@ -34,6 +34,9 @@ export default function AdminDashboard() {
 
   const [requests, setRequests] = useState<any[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
+
+  const [cardPayments, setCardPayments] = useState<any[]>([]);
+  const [loadingCardPayments, setLoadingCardPayments] = useState(false);
 
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [userCharges, setUserCharges] = useState<any[]>([]);
@@ -54,6 +57,7 @@ export default function AdminDashboard() {
     if (!isAuthenticated) return;
     if (activeTab === "users") fetchUsers();
     if (activeTab === "deposits") fetchRequests();
+    if (activeTab === "cardPayments") fetchCardPayments();
     if (activeTab === "statistics") fetchStatistics();
   }, [activeTab, isAuthenticated]);
 
@@ -167,6 +171,18 @@ export default function AdminDashboard() {
     if (error) console.error("입금 내역 에러:", error);
     else setRequests(data || []);
     setLoadingRequests(false);
+  };
+
+  const fetchCardPayments = async () => {
+    setLoadingCardPayments(true);
+    const { data, error } = await supabase
+      .from("payment_logs")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) console.error("카드 결제 내역 에러:", error);
+    else setCardPayments(data || []);
+    setLoadingCardPayments(false);
   };
 
   const fetchStatistics = async () => {
@@ -408,6 +424,16 @@ export default function AdminDashboard() {
               <CreditCard size={18} /> 무통장 입금 관리
             </button>
             <button
+              onClick={() => setActiveTab("cardPayments")}
+              className={`flex items-center gap-2 px-6 py-3 rounded-t-xl font-bold transition-all ${
+                activeTab === "cardPayments"
+                  ? "bg-[#1c0d33] border-t border-l border-r border-[#D4AF37] text-[#D4AF37]"
+                  : "bg-transparent text-gray-400 hover:text-white"
+              }`}
+            >
+              💳 카드 결제 내역
+            </button>
+            <button
               onClick={() => setActiveTab("users")}
               className={`flex items-center gap-2 px-6 py-3 rounded-t-xl font-bold transition-all ${
                 activeTab === "users"
@@ -490,6 +516,70 @@ export default function AdminDashboard() {
                           ) : (
                             <span className="inline-flex items-center gap-1 bg-green-900/30 text-green-400 border border-green-800/50 px-3 py-2 rounded-lg text-xs font-bold w-full justify-center">
                               <CheckCircle2 size={14} /> 처리됨
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* 탭: 카드 결제 내역 화면 */}
+        {activeTab === "cardPayments" && (
+          <div className="bg-[#15072a]/90 backdrop-blur-xl rounded-b-2xl rounded-tr-2xl border border-[#3b1d6b] overflow-hidden shadow-2xl animate-in fade-in duration-300">
+            <div className="p-4 bg-[#1c0d33] border-b border-[#3b1d6b] flex justify-between items-center">
+              <span className="text-[#a48cd1] font-bold">카드 결제 내역</span>
+              <button onClick={fetchCardPayments} className="text-xs bg-[#D4AF37]/20 text-[#D4AF37] px-3 py-1.5 rounded hover:bg-[#D4AF37]/30">
+                🔄 새로고침
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse whitespace-nowrap">
+                <thead>
+                  <tr className="bg-[#1c0d33]/50 border-b border-[#3b1d6b]">
+                    <th className="p-4 text-sm text-[#a48cd1] font-medium">결제일시</th>
+                    <th className="p-4 text-sm text-[#a48cd1] font-medium">결제자 (이메일)</th>
+                    <th className="p-4 text-sm text-[#a48cd1] font-medium">주문명 (상품)</th>
+                    <th className="p-4 text-sm text-[#a48cd1] font-medium">결제 금액</th>
+                    <th className="p-4 text-sm text-[#a48cd1] font-medium">포트원 주문번호</th>
+                    <th className="p-4 text-sm text-[#a48cd1] font-medium text-center">상태</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loadingCardPayments ? (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-gray-400 animate-pulse">
+                        데이터를 불러오는 중입니다...
+                      </td>
+                    </tr>
+                  ) : cardPayments.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-gray-400">
+                        카드 결제 내역이 없습니다.
+                      </td>
+                    </tr>
+                  ) : (
+                    cardPayments.map((item) => (
+                      <tr key={item.id} className="border-b border-[#3b1d6b]/50 hover:bg-[#1e0c3a] transition-colors">
+                        <td className="p-4 text-xs text-gray-400">{new Date(item.created_at).toLocaleString()}</td>
+                        <td className="p-4 text-sm text-white">{item.user_email || "이메일 없음"}</td>
+                        <td className="p-4">
+                          <span className="text-[#D4AF37] font-bold">{item.order_name}</span>
+                        </td>
+                        <td className="p-4 font-bold text-[#F3E5AB]">{(item.amount_krw || 0).toLocaleString()}원</td>
+                        <td className="p-4 text-[10px] text-gray-500 font-mono">{item.payment_id}</td>
+                        <td className="p-4 text-center">
+                          {item.status === "PAID" ? (
+                            <span className="inline-flex items-center gap-1 bg-green-900/30 text-green-400 border border-green-800/50 px-3 py-2 rounded-lg text-xs font-bold w-full justify-center">
+                              💳 결제완료
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 bg-red-900/30 text-red-400 border border-red-800/50 px-3 py-2 rounded-lg text-xs font-bold w-full justify-center">
+                              취소/실패
                             </span>
                           )}
                         </td>
