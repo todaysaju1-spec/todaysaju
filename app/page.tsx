@@ -998,7 +998,7 @@ const handlePremiumClick = async () => {
                 
                 {/* 라벨 (제목) */}
                 <label className="text-sm text-gray-300 font-bold flex items-center">
-                  ❤️ 파트너/배우자 정보 <span className="text-xs text-gray-500 font-normal ml-2">(선택)</span>
+                  ❤️ 파트너/배우자 정보 <span className="text-xs text-gray-500 font-normal ml-2">(선택 · 짝사랑, 썸, 재회 모두 가능)</span>
                 </label>
                 
                 {/* 버튼 그룹 (반반 꽉 차게 디자인) */}
@@ -1371,7 +1371,7 @@ const handlePremiumClick = async () => {
                   {/* 💖 접이식 폼 내부 파트너 정보 */}
                   <div className="mt-6 pt-6 border-t border-[#3b1d6b]">
                     <div className="flex justify-between items-center mb-4">
-                      <label className="text-sm font-medium text-[#a48cd1]">❤️ 파트너/배우자 정보 (선택)</label>
+                      <label className="text-sm font-medium text-[#a48cd1]">❤️ 파트너/배우자 정보 (선택 · 짝사랑, 썸, 재회 모두 가능)</label>
                       <button 
                         type="button"
                         onClick={fetchPartnerSavedInfo}
@@ -1475,9 +1475,11 @@ const handlePremiumClick = async () => {
                 </button>
               </div>
 
-              {/* 8개 메뉴 그리드 */}
+              {/* 10개 메뉴 그리드 */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
                 {[
+                  { icon: "☀️", title: "오늘의 운세", desc: "오늘 하루의 기운" },
+                  { icon: "💭", title: "상대방 속마음", desc: "나를 향한 진짜 태도" },
                   { icon: "⚡", title: "월별 풀이", desc: "주의할 날/기간" },
                   { icon: "📈", title: "연도별 흐름", desc: "해마다의 기운" },
                   { icon: "💼", title: "직업운", desc: "적합한 직업" },
