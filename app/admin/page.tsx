@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { CheckCircle2, Wallet, Users, CreditCard, Lock, X, TrendingUp } from "lucide-react";
+import { CheckCircle2, Wallet, Users, CreditCard, Lock, X, TrendingUp, ChevronLeft, ChevronRight, DollarSign, Receipt, Percent, Sparkles, Ticket } from "lucide-react";
 
 const ADMIN_PASSWORD_KEY = "admin_password";
 const DEFAULT_PASSWORD = "flux1234!";
@@ -11,6 +11,27 @@ const formatTicketLabel = (ticketType: string, ticketCount: number) => {
   const typeLabel = ticketType === "premium" ? "👑 프리미엄 패스" : "🎟️ 스탠다드 패스";
   return `${typeLabel} ${ticketCount}장`;
 };
+
+const getDateKey = (date: Date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+const buildCalendarDays = (year: number, month: number) => {
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const startPadding = firstDay.getDay();
+  const days: (Date | null)[] = [];
+  for (let i = 0; i < startPadding; i++) days.push(null);
+  for (let d = 1; d <= lastDay.getDate(); d++) {
+    days.push(new Date(year, month, d));
+  }
+  return days;
+};
+
+const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
 export default function AdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -28,6 +49,11 @@ export default function AdminDashboard() {
   
   const [stats, setStats] = useState<any>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(null);
 
   const [users, setUsers] = useState<any[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
@@ -188,49 +214,74 @@ export default function AdminDashboard() {
   const fetchStatistics = async () => {
     setIsLoadingStats(true);
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const { data: usersData } = await supabase
+        .from("user_profiles")
+        .select("id, created_at, standard_ticket, premium_ticket");
 
-      // 1. 유저 데이터 가져오기
-      const { data: usersData } = await supabase.from("user_profiles").select("created_at, standard_ticket, premium_ticket");
-      
-      // 2. 매출 데이터 가져오기 (무통장 입금 완료 + 카드 결제 완료)
-      const { data: depositsData } = await supabase.from("deposit_requests").select("amount_krw, created_at").eq("status", "completed");
-      const { data: cardPaymentsData } = await supabase.from("payment_logs").select("amount_krw, created_at").eq("status", "PAID");
-      
-      // 3. 사주 조회 기록 가져오기
-      const { data: historyData } = await supabase.from("saju_history").select("title, created_at");
+      const { data: paidPayments } = await supabase
+        .from("payment_logs")
+        .select("*")
+        .eq("status", "PAID")
+        .order("created_at", { ascending: false });
 
-      // --- 지표 계산 ---
-      const totalUsers = usersData?.length || 0;
-      const todayUsers = usersData?.filter((u: any) => new Date(u.created_at) >= today).length || 0;
+      const { data: historyData } = await supabase
+        .from("saju_history")
+        .select("id, title, created_at");
 
-      const totalStandard = usersData?.reduce((sum: number, u: any) => sum + (u.standard_ticket || 0), 0) || 0;
-      const totalPremium = usersData?.reduce((sum: number, u: any) => sum + (u.premium_ticket || 0), 0) || 0;
+      const payments = paidPayments || [];
+      const users = usersData || [];
+      const history = historyData || [];
 
-      const depositTotalRevenue = depositsData?.reduce((sum: number, d: any) => sum + (d.amount_krw || 0), 0) || 0;
-      const depositTodayRevenue = depositsData?.filter((d: any) => new Date(d.created_at) >= today).reduce((sum: number, d: any) => sum + (d.amount_krw || 0), 0) || 0;
+      const totalRevenue = payments.reduce((sum: number, p: any) => sum + (p.amount_krw || 0), 0);
+      const paymentCount = payments.length;
+      const uniquePayingUsers = new Set(payments.map((p: any) => p.user_id).filter(Boolean)).size;
+      const totalUsers = users.length;
+      const conversionRate = totalUsers > 0 ? (uniquePayingUsers / totalUsers) * 100 : 0;
+      const totalSajuCount = history.length;
+      const totalStandard = users.reduce((sum: number, u: any) => sum + (u.standard_ticket || 0), 0);
+      const totalPremium = users.reduce((sum: number, u: any) => sum + (u.premium_ticket || 0), 0);
 
-      const cardTotalRevenue = cardPaymentsData?.reduce((sum: number, p: any) => sum + (p.amount_krw || 0), 0) || 0;
-      const cardTodayRevenue = cardPaymentsData?.filter((p: any) => new Date(p.created_at) >= today).reduce((sum: number, p: any) => sum + (p.amount_krw || 0), 0) || 0;
+      const packageMap: Record<string, { count: number; revenue: number; label: string }> = {
+        standard: { count: 0, revenue: 0, label: "🎟️ 스탠다드 패스" },
+        premium: { count: 0, revenue: 0, label: "👑 프리미엄 패스" },
+      };
 
-      const totalRevenue = depositTotalRevenue + cardTotalRevenue;
-      const todayRevenue = depositTodayRevenue + cardTodayRevenue;
-
-      const todayViews = historyData?.filter((h: any) => new Date(h.created_at) >= today).length || 0;
-
-      const menuCount: Record<string, number> = {};
-      historyData?.forEach((h: any) => {
-        if (h.title) {
-          menuCount[h.title] = (menuCount[h.title] || 0) + 1;
-        }
+      payments.forEach((p: any) => {
+        const key = p.ticket_type === "premium" ? "premium" : "standard";
+        packageMap[key].count += 1;
+        packageMap[key].revenue += p.amount_krw || 0;
       });
-      const popularMenus = Object.entries(menuCount)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5);
+
+      const packageFunnels = Object.entries(packageMap)
+        .map(([key, val]) => ({
+          key,
+          label: val.label,
+          count: val.count,
+          revenue: val.revenue,
+          percent: totalRevenue > 0 ? (val.revenue / totalRevenue) * 100 : 0,
+        }))
+        .sort((a, b) => b.revenue - a.revenue);
+
+      const dailyStats: Record<string, { count: number; revenue: number; payments: any[] }> = {};
+      payments.forEach((p: any) => {
+        const key = getDateKey(new Date(p.created_at));
+        if (!dailyStats[key]) dailyStats[key] = { count: 0, revenue: 0, payments: [] };
+        dailyStats[key].count += 1;
+        dailyStats[key].revenue += p.amount_krw || 0;
+        dailyStats[key].payments.push(p);
+      });
 
       setStats({
-        totalUsers, todayUsers, totalRevenue, todayRevenue, totalStandard, totalPremium, todayViews, popularMenus
+        totalRevenue,
+        paymentCount,
+        conversionRate,
+        uniquePayingUsers,
+        totalSajuCount,
+        totalUsers,
+        totalStandard,
+        totalPremium,
+        packageFunnels,
+        dailyStats,
       });
     } catch (error) {
       console.error("통계 에러:", error);
@@ -668,68 +719,244 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
-        {/* 탭 3: 실시간 통계 대시보드 화면 */}
+        {/* 탭: 실시간 통계 B2B 대시보드 */}
         {activeTab === "statistics" && (
           <div className="bg-[#15072a]/90 backdrop-blur-xl rounded-b-2xl rounded-tr-2xl border border-[#3b1d6b] p-6 shadow-2xl animate-in fade-in duration-300">
             <div className="flex justify-between items-center mb-6 pb-4 border-b border-[#3b1d6b]">
-              <h2 className="text-xl font-bold text-[#a48cd1] flex items-center gap-2">
-                <TrendingUp className="text-[#D4AF37]" /> 오늘의 비즈니스 인사이트
-              </h2>
-              <button onClick={fetchStatistics} className="text-xs bg-[#D4AF37]/20 text-[#D4AF37] px-3 py-1.5 rounded hover:bg-[#D4AF37]/30">
+              <div>
+                <h2 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#FACC15] to-[#F3E5AB] flex items-center gap-2">
+                  <TrendingUp className="text-[#FACC15]" /> 실시간 데이터 분석 대시보드
+                </h2>
+                <p className="text-xs text-gray-500 mt-1">payment_logs · user_profiles · saju_history 기반</p>
+              </div>
+              <button onClick={fetchStatistics} className="text-xs bg-[#FACC15]/15 text-[#FACC15] px-3 py-1.5 rounded hover:bg-[#FACC15]/25 border border-[#FACC15]/30">
                 🔄 데이터 새로고침
               </button>
             </div>
 
             {isLoadingStats || !stats ? (
-              <div className="py-12 text-center text-gray-400 animate-pulse">실시간 지표를 불러오는 중입니다...</div>
+              <div className="py-16 text-center text-gray-400 animate-pulse">실시간 지표를 불러오는 중입니다...</div>
             ) : (
-              <div className="space-y-6">
-                {/* KPI 카드 4개 */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-[#1c0d33] border border-[#3b1d6b] p-5 rounded-xl">
-                    <p className="text-xs text-gray-400 mb-1">오늘 입금/카드 매출</p>
-                    <p className="text-2xl font-black text-[#D4AF37] mb-1">{stats.todayRevenue.toLocaleString()}원</p>
-                    <p className="text-xs text-[#a48cd1]">누적 매출: {stats.totalRevenue.toLocaleString()}원</p>
+              <div className="space-y-8">
+                {/* 1. 6대 핵심 KPI */}
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+                  <div className="bg-[#130b24] border-2 border-[#FACC15] p-5 rounded-xl shadow-[0_0_20px_rgba(250,204,21,0.12)]">
+                    <div className="flex items-center gap-2 mb-2">
+                      <DollarSign size={16} className="text-[#FACC15]" />
+                      <p className="text-xs text-[#FACC15] font-bold tracking-wide">총매출</p>
+                    </div>
+                    <p className="text-3xl xl:text-4xl font-black text-[#FACC15] leading-tight">{stats.totalRevenue.toLocaleString()}<span className="text-lg ml-0.5">원</span></p>
+                    <p className="text-[10px] text-gray-500 mt-2">PAID 결제 합산</p>
                   </div>
-                  <div className="bg-[#1c0d33] border border-[#3b1d6b] p-5 rounded-xl">
-                    <p className="text-xs text-gray-400 mb-1">오늘 신규 가입자</p>
-                    <p className="text-2xl font-black text-white mb-1">+{stats.todayUsers}명</p>
-                    <p className="text-xs text-[#a48cd1]">총 회원: {stats.totalUsers}명</p>
+
+                  <div className="bg-[#130b24] border border-[#3b1d6b] p-5 rounded-xl hover:border-[#FACC15]/30 transition-colors">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Receipt size={15} className="text-gray-400" />
+                      <p className="text-xs text-gray-400">결제 건수</p>
+                    </div>
+                    <p className="text-2xl font-black text-white">{stats.paymentCount.toLocaleString()}<span className="text-sm font-bold text-gray-400 ml-1">건</span></p>
                   </div>
-                  <div className="bg-[#1c0d33] border border-[#3b1d6b] p-5 rounded-xl">
-                    <p className="text-xs text-gray-400 mb-1">오늘 발생한 사주 풀이</p>
-                    <p className="text-2xl font-black text-pink-400 mb-1">{stats.todayViews}건</p>
-                    <p className="text-xs text-[#a48cd1]">유저 활동량 (서버 사용량)</p>
+
+                  <div className="bg-[#130b24] border border-[#3b1d6b] p-5 rounded-xl hover:border-[#FACC15]/30 transition-colors">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Percent size={15} className="text-gray-400" />
+                      <p className="text-xs text-gray-400">전환율</p>
+                    </div>
+                    <p className="text-2xl font-black text-white">{stats.conversionRate.toFixed(1)}<span className="text-sm font-bold text-[#FACC15] ml-0.5">%</span></p>
+                    <p className="text-[10px] text-gray-500 mt-1">{stats.uniquePayingUsers}명 / {stats.totalUsers}명</p>
                   </div>
-                  <div className="bg-[#1c0d33] border border-[#3b1d6b] p-5 rounded-xl">
-                    <p className="text-xs text-gray-400 mb-1">유저 보유 티켓 잔고</p>
-                    <p className="text-2xl font-black text-white mb-1">
-                      <span className="text-gray-300 text-lg">S {stats.totalStandard}</span> / <span className="text-[#D4AF37] text-lg">P {stats.totalPremium}</span>
+
+                  <div className="bg-[#130b24] border border-[#3b1d6b] p-5 rounded-xl hover:border-[#FACC15]/30 transition-colors">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Sparkles size={15} className="text-gray-400" />
+                      <p className="text-xs text-gray-400">사주 풀이</p>
+                    </div>
+                    <p className="text-2xl font-black text-white">{stats.totalSajuCount.toLocaleString()}<span className="text-sm font-bold text-gray-400 ml-1">건</span></p>
+                  </div>
+
+                  <div className="bg-[#130b24] border border-[#3b1d6b] p-5 rounded-xl hover:border-[#FACC15]/30 transition-colors">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Users size={15} className="text-gray-400" />
+                      <p className="text-xs text-gray-400">총 회원 수</p>
+                    </div>
+                    <p className="text-2xl font-black text-white">{stats.totalUsers.toLocaleString()}<span className="text-sm font-bold text-gray-400 ml-1">명</span></p>
+                  </div>
+
+                  <div className="bg-[#130b24] border border-[#3b1d6b] p-5 rounded-xl hover:border-[#FACC15]/30 transition-colors">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Ticket size={15} className="text-gray-400" />
+                      <p className="text-xs text-gray-400">유저 보유 티켓</p>
+                    </div>
+                    <p className="text-xl font-black text-white leading-snug">
+                      <span className="text-gray-300">S {stats.totalStandard}</span>
+                      <span className="text-gray-600 mx-1">/</span>
+                      <span className="text-[#FACC15]">P {stats.totalPremium}</span>
                     </p>
-                    <p className="text-xs text-[#a48cd1]">스탠다드 / 프리미엄</p>
+                    <p className="text-[10px] text-gray-500 mt-1">스탠다드 / 프리미엄</p>
                   </div>
                 </div>
 
-                {/* 인기 사주 메뉴 TOP 5 */}
-                <div className="bg-[#1c0d33]/50 border border-[#3b1d6b] rounded-xl p-5">
-                  <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">🔥 가장 인기 있는 메뉴 TOP 5</h3>
-                  <div className="space-y-2">
-                    {stats.popularMenus.length > 0 ? (
-                      stats.popularMenus.map(([title, count]: [string, number], index: number) => (
-                        <div key={title} className="flex justify-between items-center bg-[#15072a] p-3 rounded-lg border border-[#3b1d6b]/50">
-                          <div className="flex items-center gap-3">
-                            <span className={`font-bold w-4 text-center ${index === 0 ? 'text-[#D4AF37]' : 'text-gray-500'}`}>
-                              {index + 1}
-                            </span>
-                            <span className="text-sm text-gray-200">{title}</span>
-                          </div>
-                          <span className="text-xs font-bold text-[#a48cd1] bg-[#3b1d6b]/30 px-2 py-1 rounded">{count}회 조회</span>
+                {/* 2. 패키지별 매출 퍼널 */}
+                <div className="bg-[#130b24]/80 border border-[#3b1d6b] rounded-xl p-6">
+                  <h3 className="text-sm font-bold text-white mb-5 flex items-center gap-2">
+                    <span className="w-1 h-4 bg-[#FACC15] rounded-full inline-block" />
+                    패키지별 매출 퍼널
+                  </h3>
+                  <div className="space-y-5">
+                    {stats.packageFunnels.map((pkg: any) => (
+                      <div key={pkg.key}>
+                        <div className="flex flex-wrap justify-between items-end gap-2 mb-2">
+                          <span className="text-sm font-bold text-gray-200">{pkg.label}</span>
+                          <span className="text-xs text-gray-400">
+                            <span className="text-[#FACC15] font-bold">{pkg.count}건</span>
+                            <span className="mx-1.5 text-gray-600">·</span>
+                            <span className="text-white font-bold">{pkg.percent.toFixed(0)}%</span>
+                            <span className="mx-1.5 text-gray-600">·</span>
+                            <span className="text-[#F3E5AB] font-bold">{pkg.revenue.toLocaleString()}원</span>
+                          </span>
                         </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-gray-500 text-center py-4">아직 사주 조회 기록이 없습니다.</p>
+                        <div className="h-3 bg-[#0a0514] rounded-full overflow-hidden border border-[#3b1d6b]/50">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-[#D4AF37] via-[#FACC15] to-[#F3E5AB] transition-all duration-700"
+                            style={{ width: `${Math.max(pkg.percent, pkg.count > 0 ? 4 : 0)}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    {stats.paymentCount === 0 && (
+                      <p className="text-sm text-gray-500 text-center py-4">아직 PAID 결제 데이터가 없습니다.</p>
                     )}
                   </div>
+                </div>
+
+                {/* 3. 일별 결제 트래킹 달력 */}
+                <div className="bg-[#130b24]/80 border border-[#3b1d6b] rounded-xl p-6">
+                  <div className="flex justify-between items-center mb-5">
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <span className="w-1 h-4 bg-[#FACC15] rounded-full inline-block" />
+                      일별 결제 트래킹
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+                        className="p-1.5 rounded-lg border border-[#3b1d6b] text-gray-400 hover:text-[#FACC15] hover:border-[#FACC15]/40 transition-colors"
+                      >
+                        <ChevronLeft size={16} />
+                      </button>
+                      <span className="text-sm font-bold text-[#FACC15] min-w-[100px] text-center">
+                        {calendarMonth.getFullYear()}년 {calendarMonth.getMonth() + 1}월
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+                        className="p-1.5 rounded-lg border border-[#3b1d6b] text-gray-400 hover:text-[#FACC15] hover:border-[#FACC15]/40 transition-colors"
+                      >
+                        <ChevronRight size={16} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-7 gap-1.5 mb-2">
+                    {WEEKDAY_LABELS.map((label, i) => (
+                      <div
+                        key={label}
+                        className={`text-center text-[10px] font-bold py-1 ${i === 0 ? "text-red-400/70" : i === 6 ? "text-blue-400/70" : "text-gray-500"}`}
+                      >
+                        {label}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-7 gap-1.5">
+                    {buildCalendarDays(calendarMonth.getFullYear(), calendarMonth.getMonth()).map((day, idx) => {
+                      if (!day) {
+                        return <div key={`empty-${idx}`} className="min-h-[72px]" />;
+                      }
+
+                      const dateKey = getDateKey(day);
+                      const dayData = stats.dailyStats[dateKey];
+                      const isSelected = selectedCalendarDate === dateKey;
+                      const isToday = getDateKey(new Date()) === dateKey;
+
+                      return (
+                        <button
+                          key={dateKey}
+                          type="button"
+                          onClick={() => setSelectedCalendarDate(isSelected ? null : dateKey)}
+                          className={`min-h-[72px] p-1.5 rounded-lg border text-left transition-all ${
+                            isSelected
+                              ? "border-[#FACC15] bg-[#FACC15]/10 shadow-[0_0_12px_rgba(250,204,21,0.15)]"
+                              : isToday
+                                ? "border-[#D4AF37]/50 bg-[#1c0d33]"
+                                : "border-[#3b1d6b]/40 bg-[#0a0514]/60 hover:border-[#FACC15]/30 hover:bg-[#1c0d33]/50"
+                          }`}
+                        >
+                          <span className={`text-xs font-bold block mb-1 ${isToday ? "text-[#FACC15]" : "text-gray-300"}`}>
+                            {day.getDate()}
+                          </span>
+                          {dayData ? (
+                            <div className="space-y-0.5">
+                              <span className="block text-[9px] font-bold bg-[#FACC15]/15 text-[#FACC15] px-1 py-0.5 rounded leading-tight">
+                                {dayData.count}건
+                              </span>
+                              <span className="block text-[9px] font-bold bg-[#3b1d6b]/60 text-gray-300 px-1 py-0.5 rounded leading-tight truncate">
+                                {(dayData.revenue / 1000).toFixed(0)}k
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-[9px] text-gray-600">-</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {selectedCalendarDate && stats.dailyStats[selectedCalendarDate] && (
+                    <div className="mt-5 border-t border-[#3b1d6b] pt-5 animate-in fade-in duration-200">
+                      <div className="flex justify-between items-center mb-4">
+                        <h4 className="text-sm font-bold text-[#FACC15]">
+                          {selectedCalendarDate.replace(/-/g, ".")} 상세 결제 내역
+                          <span className="text-gray-400 font-normal ml-2">
+                            ({stats.dailyStats[selectedCalendarDate].count}건 · {stats.dailyStats[selectedCalendarDate].revenue.toLocaleString()}원)
+                          </span>
+                        </h4>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCalendarDate(null)}
+                          className="text-xs text-gray-500 hover:text-white transition-colors"
+                        >
+                          닫기
+                        </button>
+                      </div>
+                      <div className="overflow-x-auto rounded-xl border border-[#3b1d6b]/50">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="bg-[#1c0d33]/50 border-b border-[#3b1d6b]">
+                              <th className="p-3 text-xs text-[#a48cd1] font-medium">결제자</th>
+                              <th className="p-3 text-xs text-[#a48cd1] font-medium">주문명</th>
+                              <th className="p-3 text-xs text-[#a48cd1] font-medium text-right">금액</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {stats.dailyStats[selectedCalendarDate].payments.map((p: any) => (
+                              <tr key={p.id} className="border-b border-[#3b1d6b]/30 hover:bg-[#1e0c3a] transition-colors">
+                                <td className="p-3 text-xs text-gray-300">{p.user_email || "이메일 없음"}</td>
+                                <td className="p-3 text-xs text-[#D4AF37] font-medium">{p.order_name || "-"}</td>
+                                <td className="p-3 text-xs text-[#F3E5AB] font-bold text-right">{(p.amount_krw || 0).toLocaleString()}원</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedCalendarDate && !stats.dailyStats[selectedCalendarDate] && (
+                    <div className="mt-5 border-t border-[#3b1d6b] pt-5 text-center text-sm text-gray-500">
+                      {selectedCalendarDate.replace(/-/g, ".")} — 결제 내역 없음
+                    </div>
+                  )}
                 </div>
               </div>
             )}
