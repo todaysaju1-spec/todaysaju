@@ -663,7 +663,7 @@ export default function AdminDashboard() {
               <table className="w-full text-left border-collapse whitespace-nowrap">
                 <thead>
                   <tr className="bg-[#1c0d33]/50 border-b border-[#3b1d6b]">
-                    <th className="p-4 text-sm text-[#a48cd1] font-medium">이름 (계정ID)</th>
+                    <th className="p-4 text-sm text-[#a48cd1] font-medium">이름 (이메일)</th>
                     <th className="p-4 text-sm text-[#a48cd1] font-medium">성별</th>
                     <th className="p-4 text-sm text-[#a48cd1] font-medium">생년월일</th>
                     <th className="p-4 text-sm text-[#a48cd1] font-medium">가입일</th>
@@ -685,12 +685,15 @@ export default function AdminDashboard() {
                           <button
                             type="button"
                             onClick={() => handleUserClick(u)}
-                            className="font-bold text-white hover:text-[#D4AF37] hover:underline underline-offset-2 transition-colors text-left cursor-pointer"
+                            className="hover:text-[#D4AF37] hover:underline underline-offset-2 transition-colors text-left cursor-pointer"
                           >
-                            {u.display_name || "미입력"}
+                            <span className="font-bold text-white">{u.display_name || "미입력"}</span>
+                            <span className="text-sm text-[#a48cd1] font-medium ml-1">
+                              ({u.email || "이메일 없음"})
+                            </span>
                           </button>
-                          <div className="text-[10px] text-gray-500 font-mono mt-0.5" title={u.id}>
-                            {u.email || `ID: ${u.id.slice(0, 8)}...`}
+                          <div className="text-[10px] text-gray-500 font-mono mt-1" title={u.id}>
+                            ID: {u.id.slice(0, 8)}...
                           </div>
                         </td>
                         <td className="p-4 text-sm text-gray-300">{u.gender || "-"}</td>
@@ -974,7 +977,7 @@ export default function AdminDashboard() {
           <div className="relative w-full max-w-3xl max-h-[85vh] bg-[#15072a] border border-[#3b1d6b] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
             <div className="flex justify-between items-center p-6 border-b border-[#3b1d6b] shrink-0">
               <h2 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB]">
-                [{selectedUser.display_name || "미입력"}]님의 상세 정보
+                [{selectedUser.display_name || "미입력"} ({selectedUser.email || "이메일 없음"})]님의 상세 정보
               </h2>
               <button
                 onClick={handleCloseUserDetailModal}

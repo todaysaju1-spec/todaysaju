@@ -185,6 +185,45 @@ const [passwordInput, setPasswordInput] = useState("");
     }
   };
 
+  const syncUserEmail = async (authUser: {
+    id: string;
+    email?: string | null;
+    user_metadata?: { email?: string };
+  }) => {
+    const authEmail = authUser.email || authUser.user_metadata?.email;
+    if (!authEmail) return;
+
+    const { data: profile, error: fetchError } = await supabase
+      .from("user_profiles")
+      .select("email")
+      .eq("id", authUser.id)
+      .maybeSingle();
+
+    if (fetchError) {
+      console.error("이메일 동기화 조회 에러:", fetchError);
+      return;
+    }
+
+    if (profile?.email) return;
+
+    if (!profile) {
+      const { error } = await supabase.from("user_profiles").upsert({
+        id: authUser.id,
+        tenant_id: "client_a",
+        email: authEmail,
+      });
+      if (error) console.error("이메일 동기화 upsert 에러:", error);
+      return;
+    }
+
+    const { error } = await supabase
+      .from("user_profiles")
+      .update({ email: authEmail })
+      .eq("id", authUser.id);
+
+    if (error) console.error("이메일 동기화 update 에러:", error);
+  };
+
 // 💡 [추가] 브라우저에 화면이 뜬(마운트 된) 직후에만 랜덤 값을 계산합니다.
 useEffect(() => {
   const generatedStars = [...Array(35)].map(() => ({
@@ -204,6 +243,7 @@ useEffect(() => {
     if (session?.user) {
       fetchMyTickets(session.user.id);
       syncDailyFreeStatus(session.user.id);
+      syncUserEmail(session.user);
     }
   });
 
@@ -213,6 +253,7 @@ useEffect(() => {
     if (session?.user) {
       fetchMyTickets(session.user.id);
       syncDailyFreeStatus(session.user.id);
+      syncUserEmail(session.user);
     } else {
       setStandardTicket(0);
       setPremiumTicket(0);
@@ -222,6 +263,12 @@ useEffect(() => {
 
   return () => subscription.unsubscribe();
 }, []);
+
+useEffect(() => {
+  if (step === "analyzing" || step === "result") {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+}, [step]);
 
 // 로그아웃 함수
 const handleLogout = async () => {
@@ -568,6 +615,7 @@ const handleUseTicketAndRetry = async () => {
     const { data: { session } } = await supabase.auth.getSession();
 
     if (session?.user) {
+      await syncUserEmail(session.user);
       await saveMyProfile(session.user.id);
     }
 
@@ -716,6 +764,8 @@ const handleFollowUp = async (question: string) => {
       return;
     }
 
+    await syncUserEmail(session.user);
+
     // 2. 사주 정보 유무 확인 (새로고침 시 에러 방지)
     if (!userInfo.name || !userInfo.birth) {
       alert("사주 정보가 초기화되었습니다. 메인 화면에서 다시 입력해주세요.");
@@ -792,6 +842,8 @@ const handlePremiumClick = async () => {
     handleGoogleLogin();
     return;
   }
+
+  await syncUserEmail(session.user);
   
   setStep("analyzing");
   setLoadingText("대운(大運)과 세운(歲運)을 교차하여 심층 마스터플랜을 구성 중입니다.\n운명의 전체 궤도를 분석하는 정밀 작업으로 약 5~9분 정도 소요됩니다.");
