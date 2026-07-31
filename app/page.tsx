@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Sparkles, Lock, Wallet, ArrowRight, Star, Moon, Compass, CheckCircle2, Gift, MessageCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase"; // Supabase 연동 클라이언트
 import { calculateSaju } from "ssaju";
@@ -42,6 +43,7 @@ const hasTodayFreeSajuInDB = async (userId: string): Promise<boolean> => {
 };
 
 export default function TodaySajuLanding() {
+  const router = useRouter();
   // 화면 전환 스테이트: 로그인전 -> 정보입력 -> 분석중 -> 결과창(무료+꼬리질문)
   const [step, setStep] = useState<"login" | "input" | "analyzing" | "result">("login");
   
@@ -96,6 +98,7 @@ const [passwordInput, setPasswordInput] = useState("");
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyList, setHistoryList] = useState<any[]>([]);
   const [selectedHistory, setSelectedHistory] = useState<any>(null); // 리스트에서 클릭한 상세 내역
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
  // 이용권 구매용 상태 추가
   const [selectedPackage, setSelectedPackage] = useState<any>(null);
   const [depositorName, setDepositorName] = useState("");
@@ -224,7 +227,57 @@ useEffect(() => {
 const handleLogout = async () => {
   await supabase.auth.signOut();
   setUser(null);
+  setShowHistoryModal(false);
+  setSelectedHistory(null);
+  setStep("login");
   alert("로그아웃 되었습니다.");
+};
+
+const WITHDRAW_CONFIRM_MESSAGE =
+  "⚠️ 정말 회원 탈퇴하시겠습니까?\n\n• 보유 중인 스탠다드/프리미엄 티켓이 모두 소멸됩니다.\n• 저장된 사주 보관함 내역이 초기화됩니다.\n• 탈퇴 후 재가입하셔도 기존 티켓은 복구되지 않습니다.\n\n정말 탈퇴를 진행하시려면 [확인]을 눌러주세요.";
+
+const handleWithdraw = async () => {
+  if (!user) return;
+  if (!window.confirm(WITHDRAW_CONFIRM_MESSAGE)) return;
+
+  setIsWithdrawing(true);
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      alert("세션이 만료되었습니다. 다시 로그인해 주세요.");
+      return;
+    }
+
+    const res = await fetch("/api/withdraw", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ userId: user.id }),
+    });
+
+    const result = await res.json();
+    if (!res.ok) {
+      alert(result.error || "탈퇴 처리 중 오류가 발생했습니다.");
+      return;
+    }
+
+    await supabase.auth.signOut();
+    setUser(null);
+    setShowHistoryModal(false);
+    setSelectedHistory(null);
+    setHistoryList([]);
+    setStandardTicket(0);
+    setPremiumTicket(0);
+    setStep("login");
+    router.replace("/");
+  } catch (err) {
+    console.error("회원 탈퇴 에러:", err);
+    alert("탈퇴 처리 중 오류가 발생했습니다.");
+  } finally {
+    setIsWithdrawing(false);
+  }
 };
 
 // 💾 [사주 기록] 분석 결과를 saju_history에 새 행으로 INSERT (계정 프로필과 무관)
@@ -287,7 +340,8 @@ const fetchMyHistory = async () => {
   }
   
   try {
-    // 🌟 핵심: 내 아이디(user.id)랑 똑같은 것만 가져오라고 명시적으로 명령(.eq) 추가!
+    await fetchMyTickets(user.id);
+
     const { data, error } = await supabase
       .from('saju_history')
       .select('*')
@@ -861,7 +915,7 @@ const handlePremiumClick = async () => {
               className="flex items-center justify-center gap-1.5 bg-[#1c0d33] border border-[#a48cd1]/50 px-2 py-1.5 sm:px-3 rounded-full hover:bg-[#D4AF37]/20 hover:border-[#D4AF37] transition-all shadow-[0_0_10px_rgba(212,175,55,0.1)] group shrink-0"
             >
               <span className="text-sm">🗂️</span>
-              <span className="hidden sm:inline-block text-xs md:text-sm font-bold text-gray-200 group-hover:text-[#D4AF37] transition-colors whitespace-nowrap">사주 보관함</span>
+              <span className="hidden sm:inline-block text-xs md:text-sm font-bold text-gray-200 group-hover:text-[#D4AF37] transition-colors whitespace-nowrap">마이페이지</span>
             </button>
 
             {/* 🌟 이용권 잔액 및 구매 버튼 */}
@@ -1990,21 +2044,21 @@ const handlePremiumClick = async () => {
           </div>
         </div>
       )}
-      {/* 🗂️ [모달] 내 운세 보관함 */}
+      {/* 👤 [모달] 마이페이지 · 사주 보관함 */}
       {showHistoryModal && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[100] flex flex-col items-center justify-center p-5 animate-in fade-in">
           <div className="bg-[#120524] border border-[#D4AF37]/50 w-full max-w-md max-h-[85vh] rounded-3xl flex flex-col shadow-2xl relative overflow-hidden">
             
-            {/* 헤더 */}
+            {/* 마이페이지 상단 */}
             <div className="p-5 border-b border-[#3b1d6b] bg-[#0a0514]">
-              <div className="flex justify-between items-center mb-2">
-                <div className="flex items-center gap-2">
+              <div className="flex justify-between items-start mb-4">
+                <div>
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    🗂️ 사주 보관함
+                    👤 마이페이지
                   </h3>
-                  <span className="text-[10px] sm:text-xs text-red-400 bg-red-400/10 px-2 py-0.5 rounded-md border border-red-400/20">
-                    ⚠️ 60일 후 자동 삭제
-                  </span>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {user?.user_metadata?.name || user?.email || "고객"}님
+                  </p>
                 </div>
                 <button 
                   onClick={() => { setShowHistoryModal(false); setSelectedHistory(null); }} 
@@ -2013,8 +2067,55 @@ const handlePremiumClick = async () => {
                   ×
                 </button>
               </div>
-              <p className="text-xs text-gray-400 break-keep">
-              분석된 운세 결과는 이곳에 안전하게 보관되며, 언제든 다시 꺼내보실 수 있습니다.
+
+              <div className="bg-[#1a0b2e] border border-[#3b1d6b] rounded-2xl p-4 mb-4">
+                <p className="text-[10px] text-[#a48cd1] font-bold mb-2 tracking-wide">보유 이용권</p>
+                <div className="flex items-center justify-center gap-6">
+                  <div className="text-center">
+                    <p className="text-xs text-gray-400 mb-1">🎟️ 스탠다드</p>
+                    <p className="text-2xl font-black text-[#D4AF37]">{standardTicket}<span className="text-sm font-bold ml-0.5">장</span></p>
+                  </div>
+                  <div className="w-px h-10 bg-[#3b1d6b]" />
+                  <div className="text-center">
+                    <p className="text-xs text-gray-400 mb-1">👑 프리미엄</p>
+                    <p className="text-2xl font-black text-[#F3E5AB]">{premiumTicket}<span className="text-sm font-bold ml-0.5">장</span></p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="flex-1 py-2.5 rounded-xl border border-[#3b1d6b] text-gray-300 text-xs font-bold hover:text-white hover:border-gray-500 transition-all"
+                >
+                  로그아웃
+                </button>
+                <button
+                  type="button"
+                  onClick={handleWithdraw}
+                  disabled={isWithdrawing}
+                  className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                    isWithdrawing
+                      ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                      : "border border-red-500/40 text-red-400 hover:bg-red-500/10 hover:border-red-400"
+                  }`}
+                >
+                  {isWithdrawing ? "처리 중..." : "회원 탈퇴"}
+                </button>
+              </div>
+            </div>
+
+            {/* 사주 보관함 헤더 */}
+            <div className="px-5 py-3 border-b border-[#3b1d6b]/50 bg-[#0a0514]/80">
+              <div className="flex items-center gap-2">
+                <h4 className="text-sm font-bold text-white">🗂️ 사주 보관함</h4>
+                <span className="text-[10px] text-red-400 bg-red-400/10 px-2 py-0.5 rounded-md border border-red-400/20">
+                  ⚠️ 60일 후 자동 삭제
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-500 mt-1 break-keep">
+                분석된 운세 결과는 이곳에 안전하게 보관됩니다.
               </p>
             </div>
 
