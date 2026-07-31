@@ -163,19 +163,7 @@ const [passwordInput, setPasswordInput] = useState("");
       alert("아직 저장된 파트너 정보가 없습니다.\n분석 시 파트너 정보를 입력하시면 자동 저장됩니다!");
     }
   };
-// 💡 [추가] 브라우저에 화면이 뜬(마운트 된) 직후에만 랜덤 값을 계산합니다.
-useEffect(() => {
-  const generatedStars = [...Array(35)].map(() => ({
-    width: Math.random() * 3 + 1 + 'px',
-    height: Math.random() * 3 + 1 + 'px',
-    top: Math.random() * 100 + '%',
-    left: Math.random() * 100 + '%',
-    '--duration': Math.random() * 3 + 2 + 's',
-    '--delay': Math.random() * 2 + 's',
-  }));
-  setStars(generatedStars);
-}, []);
-useEffect(() => {
+
   const fetchMyTickets = async (userId: string) => {
     const { data } = await supabase
       .from("user_profiles")
@@ -189,7 +177,6 @@ useEffect(() => {
     }
   };
 
-  // 오늘 무료 사주 사용 여부 — saju_history DB(KST 당일) 기준
   const syncDailyFreeStatus = async (userId: string) => {
     const used = await hasTodayFreeSajuInDB(userId);
     setHasUsedDailyFree(used);
@@ -198,6 +185,19 @@ useEffect(() => {
     }
   };
 
+// 💡 [추가] 브라우저에 화면이 뜬(마운트 된) 직후에만 랜덤 값을 계산합니다.
+useEffect(() => {
+  const generatedStars = [...Array(35)].map(() => ({
+    width: Math.random() * 3 + 1 + 'px',
+    height: Math.random() * 3 + 1 + 'px',
+    top: Math.random() * 100 + '%',
+    left: Math.random() * 100 + '%',
+    '--duration': Math.random() * 3 + 2 + 's',
+    '--delay': Math.random() * 2 + 's',
+  }));
+  setStars(generatedStars);
+}, []);
+useEffect(() => {
   // 1. 현재 로그인 상태 확인
   supabase.auth.getSession().then(({ data: { session } }) => {
     setUser(session?.user || null);
