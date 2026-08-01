@@ -1366,7 +1366,7 @@ const handlePremiumClick = async () => {
 </h3>
               </div>
               
-              <div className="text-gray-200 text-base md:text-[17px] leading-[1.8] tracking-wide mb-6 whitespace-pre-wrap">
+              <div className="text-gray-200 text-base md:text-lg leading-relaxed tracking-wide mb-6 whitespace-pre-wrap">
         {sajuResultText.replaceAll("**", "")}
       </div>
 
@@ -1379,7 +1379,7 @@ const handlePremiumClick = async () => {
                   <h4 className="text-[#F3E5AB] text-sm font-bold mb-4 flex items-center gap-2">
                     ✨ 더 궁금한 내용이 있나요?
                   </h4>
-                  <div className="flex flex-wrap gap-2 mb-4">
+                  <div className="flex flex-wrap gap-3 mb-4">
                     {suggestedQuestions.map((q, idx) => (
                       <button
                         key={idx}
@@ -1391,7 +1391,7 @@ const handlePremiumClick = async () => {
                           // 꼬리질문 결제 대기열에 올림 (300P)
                           setPendingPayment({ type: "followup", title: "심층 꼬리질문", payload: q });
                         }}
-                        className="bg-[#1a0b2e] border border-[#44237d] hover:border-[#D4AF37] hover:bg-[#D4AF37]/10 text-gray-300 hover:text-[#F3E5AB] text-xs px-4 py-2.5 rounded-full transition-all"
+                        className="bg-[#1a0b2e] border border-[#44237d] hover:border-[#D4AF37] hover:bg-[#D4AF37]/10 text-gray-300 hover:text-[#F3E5AB] text-sm md:text-base font-medium px-4 py-3.5 rounded-2xl transition-all text-left leading-relaxed"
                       >
                         {q}
                       </button>
@@ -1412,7 +1412,7 @@ const handlePremiumClick = async () => {
               {followUpResult && !isFollowUpLoading && (
                 <div className="bg-[#0a0514] border border-[#D4AF37]/40 rounded-xl p-5 shadow-[0_0_15px_rgba(212,175,55,0.1)] animate-in fade-in zoom-in-95">
                   <p className="text-xs font-bold text-[#D4AF37] mb-3 pb-2 border-b border-[#D4AF37]/20">💡 {selectedQuestion}</p>
-                  <div className="text-gray-200 text-base md:text-[17px] leading-[1.8] tracking-wide whitespace-pre-wrap">
+                  <div className="text-gray-200 text-base md:text-lg leading-relaxed tracking-wide whitespace-pre-wrap">
                     {followUpResult}
                   </div>
                   
@@ -1421,7 +1421,7 @@ const handlePremiumClick = async () => {
                     <p className="text-[#F3E5AB] text-sm font-bold mb-3 flex items-center gap-2">
                       ✨ 다음은 무엇이 궁금하신가요?
                     </p>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-3">
                       {suggestedQuestions.map((q, idx) => (
                         <button
                           key={idx}
@@ -1433,7 +1433,7 @@ const handlePremiumClick = async () => {
                             // 꼬리질문 결제 대기열에 올림 (300P)
                             setPendingPayment({ type: "followup", title: "심층 꼬리질문", payload: q });
                           }}
-                          className="bg-[#1a0b2e] border border-[#44237d] hover:border-[#D4AF37] hover:bg-[#D4AF37]/10 text-gray-300 hover:text-[#F3E5AB] text-xs px-4 py-2.5 rounded-full transition-all"
+                          className="bg-[#1a0b2e] border border-[#44237d] hover:border-[#D4AF37] hover:bg-[#D4AF37]/10 text-gray-300 hover:text-[#F3E5AB] text-sm md:text-base font-medium px-4 py-3.5 rounded-2xl transition-all text-left leading-relaxed"
                         >
                           {q}
                         </button>
@@ -2172,7 +2172,7 @@ const handlePremiumClick = async () => {
                   <p className="text-xs text-[#a48cd1] mb-5">
                     {new Date(selectedHistory.created_at).toLocaleString('ko-KR', { year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' })}
                   </p>
-                  <div className="text-base md:text-[17px] text-gray-200 leading-[1.8] tracking-wide whitespace-pre-wrap bg-[#0a0514] p-5 md:p-6 rounded-2xl border border-[#3b1d6b]">
+                  <div className="text-base md:text-lg text-gray-200 leading-relaxed tracking-wide whitespace-pre-wrap bg-[#0a0514] p-5 md:p-6 rounded-2xl border border-[#3b1d6b]">
                     {selectedHistory.content}
                   </div>
                 </div>
