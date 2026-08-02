@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase"; // Supabase 연동 클라이언트
 import { calculateSaju } from "ssaju";
 import { safeGetJSON, safeSetJSON, safeSetItem, safeSessionSetJSON } from "@/lib/safe-storage";
 import ButtonSpinner from "@/components/ButtonSpinner";
+import { useToast } from "@/components/ToastProvider";
 
 const PORTONE_STORE_ID = "store-252438e8-5d98-47ec-b2a6-e040643cf1a6";
 const PORTONE_CHANNEL_KEY = "channel-key-fd3937f3-b47f-4de6-9a08-16c085c44f46";
@@ -76,6 +77,7 @@ const hasTodayFreeSajuInDB = async (userId: string): Promise<boolean> => {
 
 export default function TodaySajuLanding() {
   const router = useRouter();
+  const { showToast } = useToast();
   // 화면 전환 스테이트: 로그인전 -> 정보입력 -> 분석중 -> 결과창(무료+꼬리질문)
   const [step, setStep] = useState<"login" | "input" | "analyzing" | "result">("login");
   
@@ -181,7 +183,10 @@ const [passwordInput, setPasswordInput] = useState("");
   const [isAgreed, setIsAgreed] = useState(false);
   // 🪄 내 사주 명식 자동 불러오기
   const fetchMySavedInfo = async () => {
-    if (!user) return alert("로그인 후 이용 가능합니다!");
+    if (!user) {
+      showToast("로그인 후 이용 가능합니다!", "warning");
+      return;
+    }
     if (isAnyActionLoading) return;
 
     setLoadingAction("myInfo");
@@ -200,12 +205,13 @@ const [passwordInput, setPasswordInput] = useState("");
           hasChildren: data.has_children || "없음",
           isTimeKnown: data.birth_hour !== "99"
         }));
+        showToast("✨ 저장된 사주 명식을 불러왔습니다.", "success");
       } else {
-        alert("아직 저장된 사주 정보가 없습니다.\n최초 1회 사주를 분석하시면 정보가 자동 저장됩니다!");
+        showToast("아직 저장된 사주 정보가 없습니다.\n최초 1회 사주를 분석하시면 정보가 자동 저장됩니다!", "info");
       }
     } catch (err) {
       console.error("내 정보 불러오기 실패:", err);
-      alert("정보를 불러오는 중 오류가 발생했습니다.");
+      showToast("정보를 불러오는 중 오류가 발생했습니다.", "error");
     } finally {
       setLoadingAction(null);
     }
@@ -213,7 +219,10 @@ const [passwordInput, setPasswordInput] = useState("");
 
   // 🪄 파트너 사주 명식 자동 불러오기
   const fetchPartnerSavedInfo = async () => {
-    if (!user) return alert("로그인 후 이용 가능합니다!");
+    if (!user) {
+      showToast("로그인 후 이용 가능합니다!", "warning");
+      return;
+    }
     if (isAnyActionLoading) return;
 
     setLoadingAction("partnerInfo");
@@ -233,12 +242,13 @@ const [passwordInput, setPasswordInput] = useState("");
         setPartnerInfo(loadedPartner);
         savePartnerInfoToStorage(loadedPartner);
         setShowPartner(true);
+        showToast("✨ 저장된 파트너 정보를 불러왔습니다.", "success");
       } else {
-        alert("아직 저장된 파트너 정보가 없습니다.\n분석 시 파트너 정보를 입력하시면 자동 저장됩니다!");
+        showToast("아직 저장된 파트너 정보가 없습니다.\n분석 시 파트너 정보를 입력하시면 자동 저장됩니다!", "info");
       }
     } catch (err) {
       console.error("파트너 정보 불러오기 실패:", err);
-      alert("정보를 불러오는 중 오류가 발생했습니다.");
+      showToast("정보를 불러오는 중 오류가 발생했습니다.", "error");
     } finally {
       setLoadingAction(null);
     }
@@ -246,11 +256,11 @@ const [passwordInput, setPasswordInput] = useState("");
 
   const handleSavePartnerInfo = () => {
     if (!partnerInfo.name?.trim() && !partnerInfo.birth?.trim()) {
-      alert("저장할 파트너 정보를 입력해 주세요.");
+      showToast("저장할 파트너 정보를 입력해 주세요.", "warning");
       return;
     }
     savePartnerInfoToStorage(partnerInfo);
-    alert("💾 파트너 정보가 저장되었습니다.");
+    showToast("💾 파트너 정보가 저장되었습니다.", "success");
   };
 
   const fetchMyTickets = async (userId: string) => {
@@ -1893,7 +1903,7 @@ const handlePremiumClick = async () => {
                   <button 
                     onClick={() => {
                       setShowResultForm(false);
-                      alert("✅ 명식 정보가 수정되었습니다.\n원하시는 운세를 다시 선택하시면 수정된 정보로 분석됩니다!");
+                      showToast("✅ 명식 정보가 수정되었습니다.\n원하시는 운세를 다시 선택하시면 수정된 정보로 분석됩니다!", "success");
                     }} 
                     className="w-full mt-4 py-4 bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] rounded-xl text-sm font-bold hover:shadow-[0_0_15px_rgba(212,175,55,0.3)] transition-all"
                   >

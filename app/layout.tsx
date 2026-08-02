@@ -1,6 +1,7 @@
 import Footer from "../components/Footer";
 import InstallPrompt from "../components/InstallPrompt";
 import InAppBrowserBanner from "../components/InAppBrowserBanner";
+import Providers from "../components/Providers";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
@@ -56,10 +57,12 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
       <Script src="https://cdn.portone.io/v2/browser-sdk.js" strategy="afterInteractive" />
+      <Providers>
       <InAppBrowserBanner />
       {children}
       <InstallPrompt />
       <Footer />
+      </Providers>
       </body>
     </html>
   );
