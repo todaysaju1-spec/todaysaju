@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, Lock, Wallet, ArrowRight, Star, Moon, Compass, CheckCircle2, Gift, MessageCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase"; // Supabase 연동 클라이언트
 import { calculateSaju } from "ssaju";
+import { safeGetJSON, safeSetJSON, safeSetItem, safeSessionSetJSON } from "@/lib/safe-storage";
+import ButtonSpinner from "@/components/ButtonSpinner";
 
 const PORTONE_STORE_ID = "store-252438e8-5d98-47ec-b2a6-e040643cf1a6";
 const PORTONE_CHANNEL_KEY = "channel-key-fd3937f3-b47f-4de6-9a08-16c085c44f46";
@@ -13,6 +15,36 @@ const FREE_SAJU_TITLE = "오늘의 무료 사주";
 const FREE_SAJU_TYPE = "free";
 const FREE_SAJU_LIMIT_MESSAGE =
   "오늘의 무료 사주는 하루에 한 번만 제공됩니다. [사주 보관함]에서 오늘 받은 운세를 다시 확인해 보세요! 🍀";
+
+const PARTNER_INFO_STORAGE_KEY = "saved_partner_info";
+
+type StoredPartnerInfo = {
+  name: string;
+  birth: string;
+  hour: string;
+  min: string;
+  gender: string;
+  calendarType: string;
+  isTimeKnown: boolean;
+};
+
+const savePartnerInfoToStorage = (info: StoredPartnerInfo) => {
+  safeSetJSON(PARTNER_INFO_STORAGE_KEY, info);
+};
+
+const loadPartnerInfoFromStorage = (): StoredPartnerInfo | null => {
+  return safeGetJSON<StoredPartnerInfo | null>(PARTNER_INFO_STORAGE_KEY, null);
+};
+
+const normalizeStoredPartnerInfo = (saved: StoredPartnerInfo): StoredPartnerInfo => ({
+  name: saved.name || "",
+  birth: saved.birth || "",
+  hour: saved.hour || "12",
+  min: saved.min || "00",
+  gender: saved.gender || "여자",
+  calendarType: saved.calendarType || "양력",
+  isTimeKnown: saved.isTimeKnown ?? false,
+});
 
 const getKSTDayBounds = () => {
   const kstDateStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
@@ -99,6 +131,34 @@ const [passwordInput, setPasswordInput] = useState("");
   const [historyList, setHistoryList] = useState<any[]>([]);
   const [selectedHistory, setSelectedHistory] = useState<any>(null); // 리스트에서 클릭한 상세 내역
   const [isWithdrawing, setIsWithdrawing] = useState(false);
+
+  type LoadingAction =
+    | "google"
+    | "kakao"
+    | "email"
+    | "history"
+    | "myInfo"
+    | "partnerInfo"
+    | "analyze"
+    | "portone"
+    | "deposit"
+    | "pending"
+    | "menu"
+    | "premium";
+
+  const [loadingAction, setLoadingAction] = useState<LoadingAction | null>(null);
+  const isLoading = (action: LoadingAction) => loadingAction === action;
+  const isAnyActionLoading = loadingAction !== null;
+
+  const renderLoadingContent = (action: LoadingAction, label: ReactNode) =>
+    isLoading(action) ? (
+      <span className="inline-flex items-center justify-center gap-2">
+        <ButtonSpinner />
+        처리 중...
+      </span>
+    ) : (
+      label
+    );
  // 이용권 구매용 상태 추가
   const [selectedPackage, setSelectedPackage] = useState<any>(null);
   const [depositorName, setDepositorName] = useState("");
@@ -122,46 +182,75 @@ const [passwordInput, setPasswordInput] = useState("");
   // 🪄 내 사주 명식 자동 불러오기
   const fetchMySavedInfo = async () => {
     if (!user) return alert("로그인 후 이용 가능합니다!");
-    
-    const { data, error } = await supabase.from('user_profiles').select('*').eq('id', user.id).single();
-    
-    if (data && data.birth_date) {
-      setUserInfo(prev => ({
-        ...prev,
-        name: data.display_name || "",
-        birth: data.birth_date || "",
-        hour: data.birth_hour || "12",
-        min: data.birth_min || "00",
-        gender: data.gender || "남자",
-        maritalStatus: data.marital_status || "싱글",
-        hasChildren: data.has_children || "없음",
-        isTimeKnown: data.birth_hour !== "99" // 99시(모름)가 아니면 시간 안다고 체크
-      }));
-    } else {
-      alert("아직 저장된 사주 정보가 없습니다.\n최초 1회 사주를 분석하시면 정보가 자동 저장됩니다!");
+    if (isAnyActionLoading) return;
+
+    setLoadingAction("myInfo");
+    try {
+      const { data } = await supabase.from('user_profiles').select('*').eq('id', user.id).single();
+
+      if (data && data.birth_date) {
+        setUserInfo(prev => ({
+          ...prev,
+          name: data.display_name || "",
+          birth: data.birth_date || "",
+          hour: data.birth_hour || "12",
+          min: data.birth_min || "00",
+          gender: data.gender || "남자",
+          maritalStatus: data.marital_status || "싱글",
+          hasChildren: data.has_children || "없음",
+          isTimeKnown: data.birth_hour !== "99"
+        }));
+      } else {
+        alert("아직 저장된 사주 정보가 없습니다.\n최초 1회 사주를 분석하시면 정보가 자동 저장됩니다!");
+      }
+    } catch (err) {
+      console.error("내 정보 불러오기 실패:", err);
+      alert("정보를 불러오는 중 오류가 발생했습니다.");
+    } finally {
+      setLoadingAction(null);
     }
   };
 
   // 🪄 파트너 사주 명식 자동 불러오기
   const fetchPartnerSavedInfo = async () => {
     if (!user) return alert("로그인 후 이용 가능합니다!");
-    
-    const { data, error } = await supabase.from('user_profiles').select('*').eq('id', user.id).single();
-    
-    if (data && data.partner_birth) {
-      setPartnerInfo({
-        name: data.partner_name || "",
-        birth: data.partner_birth || "",
-        hour: data.partner_hour || "12",
-        min: data.partner_min || "00",
-        gender: data.partner_gender || "여자",
-        calendarType: data.partner_calendar_type || "양력",
-        isTimeKnown: data.partner_is_time_known || false
-      });
-      setShowPartner(true); // 정보가 있으면 파트너 입력창을 자동으로 열어줌
-    } else {
-      alert("아직 저장된 파트너 정보가 없습니다.\n분석 시 파트너 정보를 입력하시면 자동 저장됩니다!");
+    if (isAnyActionLoading) return;
+
+    setLoadingAction("partnerInfo");
+    try {
+      const { data } = await supabase.from('user_profiles').select('*').eq('id', user.id).single();
+
+      if (data && data.partner_birth) {
+        const loadedPartner = normalizeStoredPartnerInfo({
+          name: data.partner_name || "",
+          birth: data.partner_birth || "",
+          hour: data.partner_hour || "12",
+          min: data.partner_min || "00",
+          gender: data.partner_gender || "여자",
+          calendarType: data.partner_calendar_type || "양력",
+          isTimeKnown: data.partner_is_time_known || false,
+        });
+        setPartnerInfo(loadedPartner);
+        savePartnerInfoToStorage(loadedPartner);
+        setShowPartner(true);
+      } else {
+        alert("아직 저장된 파트너 정보가 없습니다.\n분석 시 파트너 정보를 입력하시면 자동 저장됩니다!");
+      }
+    } catch (err) {
+      console.error("파트너 정보 불러오기 실패:", err);
+      alert("정보를 불러오는 중 오류가 발생했습니다.");
+    } finally {
+      setLoadingAction(null);
     }
+  };
+
+  const handleSavePartnerInfo = () => {
+    if (!partnerInfo.name?.trim() && !partnerInfo.birth?.trim()) {
+      alert("저장할 파트너 정보를 입력해 주세요.");
+      return;
+    }
+    savePartnerInfoToStorage(partnerInfo);
+    alert("💾 파트너 정보가 저장되었습니다.");
   };
 
   const fetchMyTickets = async (userId: string) => {
@@ -181,7 +270,7 @@ const [passwordInput, setPasswordInput] = useState("");
     const used = await hasTodayFreeSajuInDB(userId);
     setHasUsedDailyFree(used);
     if (used) {
-      localStorage.setItem(`free_saju_${userId}`, getKSTDayBounds().kstDateStr);
+      safeSetItem(`free_saju_${userId}`, getKSTDayBounds().kstDateStr);
     }
   };
 
@@ -236,6 +325,23 @@ useEffect(() => {
   }));
   setStars(generatedStars);
 }, []);
+
+useEffect(() => {
+  const savedPartner = loadPartnerInfoFromStorage();
+  if (!savedPartner) return;
+
+  const normalized = normalizeStoredPartnerInfo(savedPartner);
+  setPartnerInfo(normalized);
+  if (normalized.name || normalized.birth) {
+    setShowPartner(true);
+  }
+}, []);
+
+useEffect(() => {
+  if (!partnerInfo.name?.trim() && !partnerInfo.birth?.trim()) return;
+  savePartnerInfoToStorage(partnerInfo);
+}, [partnerInfo]);
+
 useEffect(() => {
   // 1. 현재 로그인 상태 확인
   supabase.auth.getSession().then(({ data: { session } }) => {
@@ -385,7 +491,9 @@ const fetchMyHistory = async () => {
     setShowGuestModal(true);
     return;
   }
-  
+  if (isAnyActionLoading) return;
+
+  setLoadingAction("history");
   try {
     await fetchMyTickets(user.id);
 
@@ -400,41 +508,54 @@ const fetchMyHistory = async () => {
       alert("데이터베이스 연결 중입니다. 페이지를 새로고침(F5) 후 다시 시도해주세요!");
     } else {
       setHistoryList(data || []);
-      setShowHistoryModal(true); // 데이터 가져오면 모달창 열기!
+      setShowHistoryModal(true);
     }
   } catch (err) {
     console.error("보관함 실행 중 예외 발생:", err);
+    alert("보관함을 불러오는 중 오류가 발생했습니다.");
+  } finally {
+    setLoadingAction(null);
   }
 };
 
   // ── 구글 간편 로그인 로직 ──
   const handleGoogleLogin = async () => {
-    // 실제 Supabase OAuth 로그인 연동 구문
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
-      },
-    });
+    if (isAnyActionLoading) return;
+    setLoadingAction("google");
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
+        },
+      });
 
-    if (error) {
-      console.error("로그인 에러:", error.message);
-      // 로컬 테스트(GCP API 미연동 시)를 위해 UI 전환 패스!
-      alert("💡 [MVP 테스트 모드] 구글 연동 대기 중! 임시 계정으로 입장을 진행합니다.");
-      setStep("input");
+      if (error) {
+        console.error("로그인 에러:", error.message);
+        alert("💡 [MVP 테스트 모드] 구글 연동 대기 중! 임시 계정으로 입장을 진행합니다.");
+        setStep("input");
+      }
+    } finally {
+      setLoadingAction(null);
     }
   };
-  // 🟡 카카오 로그인 함수 추가 🟡
+
   const handleKakaoLogin = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "kakao",
-      options: {
-        redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
-      },
-    });
-    if (error) {
-      console.error("카카오 로그인 에러:", error.message);
-      alert("카카오 로그인 연동 중 문제가 발생했습니다.");
+    if (isAnyActionLoading) return;
+    setLoadingAction("kakao");
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "kakao",
+        options: {
+          redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
+        },
+      });
+      if (error) {
+        console.error("카카오 로그인 에러:", error.message);
+        alert("카카오 로그인 연동 중 문제가 발생했습니다.");
+      }
+    } finally {
+      setLoadingAction(null);
     }
   };
 
@@ -451,19 +572,25 @@ const fetchMyHistory = async () => {
       alert("이메일과 비밀번호를 입력해 주세요.");
       return;
     }
+    if (isAnyActionLoading) return;
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: emailInput.trim(),
-      password: passwordInput,
-    });
+    setLoadingAction("email");
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: emailInput.trim(),
+        password: passwordInput,
+      });
 
-    if (error || !data.session) {
-      alert("이메일 또는 비밀번호가 일치하지 않습니다.");
-      return;
+      if (error || !data.session) {
+        alert("이메일 또는 비밀번호가 일치하지 않습니다.");
+        return;
+      }
+
+      handleCloseEmailLoginModal();
+      setStep("input");
+    } finally {
+      setLoadingAction(null);
     }
-
-    handleCloseEmailLoginModal();
-    setStep("input");
   };
 
   const handlePortOnePayment = async () => {
@@ -471,17 +598,19 @@ const fetchMyHistory = async () => {
       alert("결제할 상품을 먼저 선택해 주세요.");
       return;
     }
+    if (isAnyActionLoading) return;
 
     const passName = selectedPackage.category === "premium" ? "프리미엄 패스" : "스탠다드 패스";
     const orderName = `[오늘의사주] ${passName} ${selectedPackage.label}`;
 
+    setLoadingAction("portone");
     try {
       const PortOne = await import("@portone/browser-sdk/v2");
       const paymentId = `payment-${Date.now()}${Math.random().toString(36).slice(2, 11)}`;
       const redirectUrl =
         typeof window !== "undefined" ? `${window.location.origin}/payment/redirect` : undefined;
 
-      sessionStorage.setItem("pending_payment_package", JSON.stringify(selectedPackage));
+      safeSessionSetJSON("pending_payment_package", selectedPackage);
 
       const response = await PortOne.requestPayment({
         storeId: PORTONE_STORE_ID,
@@ -561,6 +690,39 @@ const fetchMyHistory = async () => {
     } catch (err) {
       console.error("PortOne 결제 에러:", err);
       alert("결제 처리 중 오류가 발생했습니다.");
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
+  const handleDepositSubmit = async () => {
+    if (!selectedPackage) return alert("구매할 이용권을 선택해 주세요!");
+    if (!depositorName.trim()) return alert("입금자명을 입력해 주세요!");
+    if (!user) return alert("로그인 정보가 없습니다. 다시 로그인해 주세요.");
+    if (isAnyActionLoading) return;
+
+    setLoadingAction("deposit");
+    try {
+      const { error } = await supabase.from("deposit_requests").insert({
+        user_id: user.id,
+        user_email: user.email || user.user_metadata?.email || "이메일 없음",
+        depositor_name: depositorName,
+        amount_krw: selectedPackage.price,
+        ticket_type: selectedPackage.category,
+        ticket_count: selectedPackage.tickets,
+      });
+
+      if (error) {
+        console.error("신청 에러:", error);
+        alert("신청 중 오류가 발생했습니다. 다시 시도해 주세요.");
+      } else {
+        alert("✅ 입금 알림이 접수되었습니다!\n관리자 확인 후 1~3분 내로 티켓이 지급됩니다.");
+        setShowChargeModal(false);
+        setSelectedPackage(null);
+        setDepositorName("");
+      }
+    } finally {
+      setLoadingAction(null);
     }
   };
   // ── 사주 분석 시작 ──
@@ -596,21 +758,22 @@ const handleUseTicketAndRetry = async () => {
     alert("이름과 생년월일을 정확히 입력해주세요!");
     return;
   }
+  if (isAnyActionLoading && !isLoading("analyze")) return;
 
-  if (!options?.skipFreeLimitCheck && user) {
-    const alreadyUsed = await hasTodayFreeSajuInDB(user.id);
-    if (alreadyUsed) {
-      setHasUsedDailyFree(true);
-      localStorage.setItem(`free_saju_${user.id}`, getKSTDayBounds().kstDateStr);
-      alert(FREE_SAJU_LIMIT_MESSAGE);
-      return;
-    }
-  }
-
-  setStep("analyzing");
-  setLoadingText("명식(命式)을 세우고 타고난 기운의 흐름을 짚어보고 있습니다.\n(예상 소요 시간: 1~2분)");
-
+  setLoadingAction("analyze");
   try {
+    if (!options?.skipFreeLimitCheck && user) {
+      const alreadyUsed = await hasTodayFreeSajuInDB(user.id);
+      if (alreadyUsed) {
+        setHasUsedDailyFree(true);
+        safeSetItem(`free_saju_${user.id}`, getKSTDayBounds().kstDateStr);
+        alert(FREE_SAJU_LIMIT_MESSAGE);
+        return;
+      }
+    }
+
+    setStep("analyzing");
+    setLoadingText("명식(命式)을 세우고 타고난 기운의 흐름을 짚어보고 있습니다.\n(예상 소요 시간: 1~2분)");
     // 1. 회원 정보(user_profiles)는 본인 명식일 때만 저장 — 지인 사주 입력값으로 덮어쓰지 않음
     const { data: { session } } = await supabase.auth.getSession();
 
@@ -677,7 +840,7 @@ const handleUseTicketAndRetry = async () => {
       const { kstDateStr } = getKSTDayBounds();
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        localStorage.setItem(`free_saju_${session.user.id}`, kstDateStr);
+        safeSetItem(`free_saju_${session.user.id}`, kstDateStr);
       }
 
       if (!options?.skipFreeLimitCheck) {
@@ -687,6 +850,10 @@ const handleUseTicketAndRetry = async () => {
       } else {
         saveSajuHistory("standard", `[${userInfo.name}]님의 일일 운세`, data.result_text);
       }
+
+      if (showPartner && (partnerInfo.name?.trim() || partnerInfo.birth?.trim())) {
+        savePartnerInfoToStorage(partnerInfo);
+      }
     } else {
       alert("운세 서버 통신이 지연되고 있습니다. 다시 시도해주세요.");
       setStep("input");
@@ -695,12 +862,16 @@ const handleUseTicketAndRetry = async () => {
     console.error("처리 중 에러 발생:", error);
     alert("서버 통신 중 에러가 발생했습니다.");
     setStep("input");
+  } finally {
+    setLoadingAction(null);
   }
 };
 
 // 꼬리질문 분석 함수
 // 꼬리질문 분석 함수
 const handleFollowUp = async (question: string) => {
+  if (isFollowUpLoading) return;
+
   setSelectedQuestion(question);
   setIsFollowUpLoading(true);
   setFollowUpResult("");
@@ -756,27 +927,27 @@ const handleFollowUp = async (question: string) => {
 
   // 📋 [핵심] 메뉴 클릭 시 회원 여부에 따라 '풀이' 혹은 '로그인 유도' 실행
   const handleMenuClick = async (title: string, category: string, desc: string) => {
-    // 1. 로그인 여부 확인 (게이트 시스템 유지)
-    const { data: { session } } = await supabase.auth.getSession();
+    if (isAnyActionLoading) return;
 
-    if (!session) {
-      setShowGuestModal(true); // 👈 alert와 강제 로그인 대신 예쁜 모달창 띄우기!
-      return;
-    }
-
-    await syncUserEmail(session.user);
-
-    // 2. 사주 정보 유무 확인 (새로고침 시 에러 방지)
-    if (!userInfo.name || !userInfo.birth) {
-      alert("사주 정보가 초기화되었습니다. 메인 화면에서 다시 입력해주세요.");
-      setStep("input");
-      return;
-    }
-
-    // 3. 로딩 화면 띄우기 및 분석 시작
-    setStep("analyzing");
-    setLoadingText(`선택하신 [${title}]의 흐름을 명리학적으로 깊이 짚어보고 있습니다.\n(예상 소요 시간: 1~2분)`);
+    setLoadingAction("menu");
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        setShowGuestModal(true);
+        return;
+      }
+
+      await syncUserEmail(session.user);
+
+      if (!userInfo.name || !userInfo.birth) {
+        alert("사주 정보가 초기화되었습니다. 메인 화면에서 다시 입력해주세요.");
+        setStep("input");
+        return;
+      }
+
+      setStep("analyzing");
+      setLoadingText(`선택하신 [${title}]의 흐름을 명리학적으로 깊이 짚어보고 있습니다.\n(예상 소요 시간: 1~2분)`);
       // 4. 만세력 데이터 상세 계산 (n8n 전송용)
       const yearPrefix = parseInt(userInfo.birth.slice(0, 2)) > 30 ? 1900 : 2000;
       const birthYear = yearPrefix + parseInt(userInfo.birth.slice(0, 2));
@@ -831,24 +1002,27 @@ const handleFollowUp = async (question: string) => {
       console.error("처리 중 에러 발생:", error);
       alert("서버 에러가 발생했습니다.");
       setStep("result");
+    } finally {
+      setLoadingAction(null);
     }
   };
-// 👑 프리미엄 사주 호출 함수
+
 const handlePremiumClick = async () => {
-  // 1. 로그인/정보 확인
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
-    alert("🎁 회원가입 후 이용 가능합니다!");
-    handleGoogleLogin();
-    return;
-  }
+  if (isAnyActionLoading) return;
 
-  await syncUserEmail(session.user);
-  
-  setStep("analyzing");
-  setLoadingText("대운(大運)과 세운(歲運)을 교차하여 심층 마스터플랜을 구성 중입니다.\n운명의 전체 궤도를 분석하는 정밀 작업으로 약 5~9분 정도 소요됩니다.");
-
+  setLoadingAction("premium");
   try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      alert("🎁 회원가입 후 이용 가능합니다!");
+      handleGoogleLogin();
+      return;
+    }
+
+    await syncUserEmail(session.user);
+
+    setStep("analyzing");
+    setLoadingText("대운(大運)과 세운(歲運)을 교차하여 심층 마스터플랜을 구성 중입니다.\n운명의 전체 궤도를 분석하는 정밀 작업으로 약 5~9분 정도 소요됩니다.");
     // 3. 만세력 데이터 계산 (기존 로직 그대로 재사용)
     const yearPrefix = parseInt(userInfo.birth.slice(0, 2)) > 30 ? 1900 : 2000;
     const birthYear = yearPrefix + parseInt(userInfo.birth.slice(0, 2));
@@ -921,8 +1095,66 @@ const handlePremiumClick = async () => {
     console.error(error);
     alert("프리미엄 분석 중 오류가 발생했습니다.");
     setStep("result");
+  } finally {
+    setLoadingAction(null);
   }
 };
+
+  const handlePendingPaymentConfirm = async () => {
+    if (!pendingPayment || !user) return;
+    if (isAnyActionLoading) return;
+
+    setLoadingAction("pending");
+    try {
+      const isPremium = pendingPayment.type === "premium";
+      const currentTicketCount = isPremium ? premiumTicket : standardTicket;
+      const ticketField = isPremium ? "premium_ticket" : "standard_ticket";
+
+      if (currentTicketCount < 1) {
+        alert("이용권이 부족합니다. 이용권 구매 후 이용해주세요!");
+        setPendingPayment(null);
+        setShowChargeModal(true);
+        return;
+      }
+
+      const newTicketCount = currentTicketCount - 1;
+      const { error } = await supabase
+        .from("user_profiles")
+        .update({ [ticketField]: newTicketCount })
+        .eq("id", user.id);
+
+      if (error) {
+        console.error("DB 티켓 차감 에러:", error);
+        alert("결제 처리 중 오류가 발생했습니다.");
+        return;
+      }
+
+      if (isPremium) {
+        setPremiumTicket(newTicketCount);
+      } else {
+        setStandardTicket(newTicketCount);
+      }
+
+      const action = pendingPayment;
+      setPendingPayment(null);
+      setLoadingAction(null);
+
+      if (action.type === "premium") {
+        await handlePremiumClick();
+      } else if (action.type === "menu") {
+        await handleMenuClick(action.payload.title, action.payload.title, action.payload.desc);
+      } else if (action.type === "followup") {
+        await handleFollowUp(action.payload);
+      } else if (action.type === "other_saju") {
+        await handleAnalyze({ skipFreeLimitCheck: true });
+      }
+    } catch (err) {
+      console.error("이용권 차감 후 분석 시작 실패:", err);
+      alert("처리 중 오류가 발생했습니다.");
+    } finally {
+      setLoadingAction(null);
+    }
+  };
 
   return (
     <main className="min-h-screen relative overflow-hidden bg-[#0a0514] text-[#e0d6f5] font-sans selection:bg-[#D4AF37]/30">
@@ -964,10 +1196,13 @@ const handlePremiumClick = async () => {
             
             <button 
               onClick={fetchMyHistory}
-              className="flex items-center justify-center gap-1.5 bg-[#1c0d33] border border-[#a48cd1]/50 px-2 py-1.5 sm:px-3 rounded-full hover:bg-[#D4AF37]/20 hover:border-[#D4AF37] transition-all shadow-[0_0_10px_rgba(212,175,55,0.1)] group shrink-0"
+              disabled={isLoading("history")}
+              className="flex items-center justify-center gap-1.5 bg-[#1c0d33] border border-[#a48cd1]/50 px-2 py-1.5 sm:px-3 rounded-full hover:bg-[#D4AF37]/20 hover:border-[#D4AF37] transition-all shadow-[0_0_10px_rgba(212,175,55,0.1)] group shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span className="text-sm">🗂️</span>
-              <span className="hidden sm:inline-block text-xs md:text-sm font-bold text-gray-200 group-hover:text-[#D4AF37] transition-colors whitespace-nowrap">마이페이지</span>
+              <span className="hidden sm:inline-block text-xs md:text-sm font-bold text-gray-200 group-hover:text-[#D4AF37] transition-colors whitespace-nowrap">
+                {isLoading("history") ? "불러오는 중..." : "마이페이지"}
+              </span>
             </button>
 
             {/* 🌟 이용권 잔액 및 구매 버튼 */}
@@ -1037,26 +1272,40 @@ const handlePremiumClick = async () => {
                     {/* 카카오 로그인 버튼 */}
                     <button
                       onClick={handleKakaoLogin}
-                      className="w-full flex items-center justify-center gap-3 bg-[#FEE500] hover:bg-[#F4DC00] text-[#000000] text-lg font-bold py-4 rounded-xl transition-all shadow-[0_0_15px_rgba(254,229,0,0.15)]"
+                      disabled={isAnyActionLoading}
+                      className="w-full flex items-center justify-center gap-3 bg-[#FEE500] hover:bg-[#F4DC00] text-[#000000] text-lg font-bold py-4 rounded-xl transition-all shadow-[0_0_15px_rgba(254,229,0,0.15)] disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 3C6.477 3 2 6.425 2 10.648c0 2.706 1.706 5.07 4.3 6.355-.26.965-1.01 3.76-1.04 3.882-.04.144.05.155.12.11 1.05-.67 4.12-2.82 4.12-2.82.82.16 1.66.25 2.5.25 5.523 0 10-3.425 10-7.648C22 6.425 17.523 3 12 3z" fill="#000000"/>
-                      </svg>
-                      <span>카카오로 1초 만에 시작</span>
+                      {isLoading("kakao") ? (
+                        <span className="inline-flex items-center gap-2"><ButtonSpinner /> 처리 중...</span>
+                      ) : (
+                        <>
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 3C6.477 3 2 6.425 2 10.648c0 2.706 1.706 5.07 4.3 6.355-.26.965-1.01 3.76-1.04 3.882-.04.144.05.155.12.11 1.05-.67 4.12-2.82 4.12-2.82.82.16 1.66.25 2.5.25 5.523 0 10-3.425 10-7.648C22 6.425 17.523 3 12 3z" fill="#000000"/>
+                          </svg>
+                          <span>카카오로 1초 만에 시작</span>
+                        </>
+                      )}
                     </button>
 
                     {/* 구글 로그인 버튼 */}
                     <button
                       onClick={handleGoogleLogin}
-                      className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-100 text-[#1a0b2e] text-lg font-bold py-4 rounded-xl transition-all shadow-[0_0_15px_rgba(255,255,255,0.15)]"
+                      disabled={isAnyActionLoading}
+                      className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-100 text-[#1a0b2e] text-lg font-bold py-4 rounded-xl transition-all shadow-[0_0_15px_rgba(255,255,255,0.15)] disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                      </svg>
-                      <span>Google 계정으로 시작</span>
+                      {isLoading("google") ? (
+                        <span className="inline-flex items-center gap-2"><ButtonSpinner /> 처리 중...</span>
+                      ) : (
+                        <>
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                          </svg>
+                          <span>Google 계정으로 시작</span>
+                        </>
+                      )}
                     </button>
 
                     {/* 이메일 로그인 버튼 */}
@@ -1091,9 +1340,10 @@ const handlePremiumClick = async () => {
                 <button 
                   type="button"
                   onClick={fetchMySavedInfo}
-                  className="flex items-center gap-1.5 bg-[#1c0d33] border border-[#D4AF37]/60 text-[#D4AF37] px-4 py-2 rounded-xl text-xs font-bold hover:bg-[#D4AF37]/20 transition-all shadow-[0_0_10px_rgba(212,175,55,0.15)]"
+                  disabled={isLoading("myInfo")}
+                  className="flex items-center gap-1.5 bg-[#1c0d33] border border-[#D4AF37]/60 text-[#D4AF37] px-4 py-2 rounded-xl text-xs font-bold hover:bg-[#D4AF37]/20 transition-all shadow-[0_0_10px_rgba(212,175,55,0.15)] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  ✨ 내 사주 명식 자동 입력하기
+                  {renderLoadingContent("myInfo", "✨ 내 사주 명식 자동 입력하기")}
                 </button>
               </div>
             )}
@@ -1203,20 +1453,28 @@ const handlePremiumClick = async () => {
                 </label>
                 
                 {/* 버튼 그룹 (반반 꽉 차게 디자인) */}
-                <div className="flex gap-2 w-full">
+                <div className="flex flex-wrap gap-2 w-full">
                   {user && (
-                    <button 
+                    <button
                       type="button"
                       onClick={fetchPartnerSavedInfo}
-                      className="flex-1 py-3 rounded-xl text-xs font-bold border border-[#a48cd1]/50 bg-[#1c0d33] text-[#a48cd1] hover:bg-[#2a144a] hover:text-white transition-all shadow-sm flex items-center justify-center gap-1"
+                      disabled={isLoading("partnerInfo")}
+                      className="flex-1 min-w-[calc(50%-0.25rem)] py-3 rounded-xl text-xs font-bold border border-[#a48cd1]/50 bg-[#1c0d33] text-[#a48cd1] hover:bg-[#2a144a] hover:text-white transition-all shadow-sm flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      ✨ 자동 불러오기
+                      {renderLoadingContent("partnerInfo", "✨ 자동 불러오기")}
                     </button>
                   )}
+                  <button
+                    type="button"
+                    onClick={handleSavePartnerInfo}
+                    className="flex-1 min-w-[calc(50%-0.25rem)] py-3 rounded-xl text-xs font-bold border border-[#D4AF37]/50 bg-[#D4AF37]/10 text-[#D4AF37] hover:bg-[#D4AF37]/20 transition-all shadow-sm flex items-center justify-center gap-1"
+                  >
+                    💾 파트너 정보 저장
+                  </button>
                   <button 
                     type="button"
                     onClick={() => setShowPartner(!showPartner)}
-                    className={`flex-1 py-3 rounded-xl text-xs font-bold border transition-all shadow-sm flex items-center justify-center ${
+                    className={`flex-1 min-w-[calc(50%-0.25rem)] py-3 rounded-xl text-xs font-bold border transition-all shadow-sm flex items-center justify-center ${
                       showPartner 
                         ? "border-gray-600 bg-gray-800 text-gray-400 hover:bg-gray-700" 
                         : "border-[#D4AF37]/60 bg-[#D4AF37]/15 text-[#D4AF37] hover:bg-[#D4AF37]/25"
@@ -1240,6 +1498,18 @@ const handlePremiumClick = async () => {
         className={`py-2 rounded-lg text-xs font-bold border ${partnerInfo.gender === "남자" ? "bg-[#D4AF37]/20 border-[#D4AF37]" : "bg-[#0a0514] border-[#3b1d6b]"}`}>남자</button>
       <button type="button" onClick={() => setPartnerInfo({...partnerInfo, gender: "여자"})}
         className={`py-2 rounded-lg text-xs font-bold border ${partnerInfo.gender === "여자" ? "bg-[#D4AF37]/20 border-[#D4AF37]" : "bg-[#0a0514] border-[#3b1d6b]"}`}>여자</button>
+    </div>
+    <div className="grid grid-cols-2 gap-2">
+      {["양력", "음력"].map((c) => (
+        <button
+          key={c}
+          type="button"
+          onClick={() => setPartnerInfo({ ...partnerInfo, calendarType: c })}
+          className={`py-2 rounded-lg text-xs font-bold border ${partnerInfo.calendarType === c ? "bg-[#D4AF37]/20 border-[#D4AF37] text-[#F3E5AB]" : "bg-[#0a0514] border-[#3b1d6b] text-gray-400"}`}
+        >
+          {c}
+        </button>
+      ))}
     </div>
     <input 
   placeholder="생년월일 (6자리)" 
@@ -1290,7 +1560,7 @@ const handlePremiumClick = async () => {
             
             {/* 분석 버튼 */}
             <button 
-              disabled={hasUsedDailyFree}
+              disabled={hasUsedDailyFree || isLoading("analyze")}
               onClick={async () => {
                 if (hasUsedDailyFree) {
                   alert(FREE_SAJU_LIMIT_MESSAGE);
@@ -1304,14 +1574,20 @@ const handlePremiumClick = async () => {
                   return; 
                 }
 
+                if (partnerInfo.name?.trim() || partnerInfo.birth?.trim()) {
+                  savePartnerInfoToStorage(partnerInfo);
+                }
+
                 await handleAnalyze();
               }}
               className={`w-full py-4 bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] font-extrabold rounded-2xl text-lg shadow-[0_0_20px_rgba(212,175,55,0.4)] transition-all flex items-center justify-center gap-2 ${
-                hasUsedDailyFree ? "opacity-50 cursor-not-allowed" : "hover:scale-[1.02]"
+                hasUsedDailyFree || isLoading("analyze") ? "opacity-50 cursor-not-allowed" : "hover:scale-[1.02]"
               }`}
             >
               {hasUsedDailyFree ? (
                 <>오늘 조회 완료</>
+              ) : isLoading("analyze") ? (
+                <span className="inline-flex items-center gap-2"><ButtonSpinner /> 처리 중...</span>
               ) : (
                 <>오늘의 사주 무료보기 ✨</>
               )}
@@ -1384,14 +1660,15 @@ const handlePremiumClick = async () => {
                       <button
                         key={idx}
                         onClick={() => {
+                          if (isAnyActionLoading || isFollowUpLoading) return;
                           if (!user) {
                             setShowGuestModal(true);
                             return;
                           }
-                          // 꼬리질문 결제 대기열에 올림 (300P)
                           setPendingPayment({ type: "followup", title: "심층 꼬리질문", payload: q });
                         }}
-                        className="bg-[#1a0b2e] border border-[#44237d] hover:border-[#D4AF37] hover:bg-[#D4AF37]/10 text-gray-300 hover:text-[#F3E5AB] text-sm md:text-base font-medium px-4 py-3.5 rounded-2xl transition-all text-left leading-relaxed"
+                        disabled={isAnyActionLoading || isFollowUpLoading}
+                        className="bg-[#1a0b2e] border border-[#44237d] hover:border-[#D4AF37] hover:bg-[#D4AF37]/10 text-gray-300 hover:text-[#F3E5AB] text-sm md:text-base font-medium px-4 py-3.5 rounded-2xl transition-all text-left leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {q}
                       </button>
@@ -1475,9 +1752,10 @@ const handlePremiumClick = async () => {
                     <button 
                       type="button"
                       onClick={fetchMySavedInfo}
-                      className="w-full flex items-center justify-center gap-2 bg-[#1c0d33] border border-[#D4AF37]/60 text-[#D4AF37] px-4 py-3 rounded-xl text-sm font-bold hover:bg-[#D4AF37]/20 transition-all shadow-sm"
+                      disabled={isLoading("myInfo")}
+                      className="w-full flex items-center justify-center gap-2 bg-[#1c0d33] border border-[#D4AF37]/60 text-[#D4AF37] px-4 py-3 rounded-xl text-sm font-bold hover:bg-[#D4AF37]/20 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      ✨ 내 사주 명식 자동 입력하기
+                      {renderLoadingContent("myInfo", "✨ 내 사주 명식 자동 입력하기")}
                     </button>
                   )}
 
@@ -1554,14 +1832,23 @@ const handlePremiumClick = async () => {
           </div>
                   {/* 💖 접이식 폼 내부 파트너 정보 */}
                   <div className="mt-6 pt-6 border-t border-[#3b1d6b]">
-                    <div className="flex justify-between items-center mb-4">
-                      <label className="text-sm font-medium text-[#a48cd1]">❤️ 파트너/배우자 정보 (선택 · 짝사랑, 썸, 재회 모두 가능)</label>
-                      <button 
+                    <label className="block text-sm font-medium text-[#a48cd1] mb-4">❤️ 파트너/배우자 정보 (선택 · 짝사랑, 썸, 재회 모두 가능)</label>
+
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      <button
                         type="button"
                         onClick={fetchPartnerSavedInfo}
-                        className="text-xs bg-[#1c0d33] border border-[#a48cd1]/50 text-[#a48cd1] px-3 py-1.5 rounded-lg hover:bg-[#2a144a]"
+                        disabled={isLoading("partnerInfo")}
+                        className="text-xs bg-[#1c0d33] border border-[#a48cd1]/50 text-[#a48cd1] px-3 py-1.5 rounded-lg hover:bg-[#2a144a] disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        ✨ 자동 불러오기
+                        {renderLoadingContent("partnerInfo", "✨ 자동 불러오기")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSavePartnerInfo}
+                        className="text-xs bg-[#D4AF37]/10 border border-[#D4AF37]/50 text-[#D4AF37] px-3 py-1.5 rounded-lg hover:bg-[#D4AF37]/20"
+                      >
+                        💾 파트너 정보 저장
                       </button>
                     </div>
 
@@ -1630,6 +1917,7 @@ const handlePremiumClick = async () => {
               <div className="mb-6 relative z-20">
                 <button
                  onClick={() => {
+                  if (isAnyActionLoading) return;
                   if (!userInfo.name || !userInfo.birth) {
                     alert("먼저 상단에 사주 명식을 입력해주세요!");
                     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1643,7 +1931,8 @@ const handlePremiumClick = async () => {
                     setPendingPayment({ type: "premium", title: "프리미엄 인생 마스터플랜", payload: null });
                   }
                 }}
-                  className="w-full bg-gradient-to-r from-[#44237d] to-[#1a0b2e] border-2 border-[#D4AF37] p-6 rounded-3xl text-left relative z-20 overflow-hidden group hover:border-[#F3E5AB] transition-all cursor-pointer shadow-lg"
+                  className="w-full bg-gradient-to-r from-[#44237d] to-[#1a0b2e] border-2 border-[#D4AF37] p-6 rounded-3xl text-left relative z-20 overflow-hidden group hover:border-[#F3E5AB] transition-all cursor-pointer shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isAnyActionLoading}
                 >
                   <div className="absolute top-0 right-0 bg-[#D4AF37] text-[#1a0b2e] font-extrabold text-[10px] px-3 py-1 rounded-bl-xl z-30">BEST</div>
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 bg-[#1c0d33] border border-[#D4AF37]/50 px-2 py-0.5 rounded-md shadow-sm z-30">
@@ -1676,15 +1965,15 @@ const handlePremiumClick = async () => {
                   <button
                     key={idx}
                     onClick={() => {
+                      if (isAnyActionLoading) return;
                       if (!user) {
                         setShowGuestModal(true);
                         return;
                       }
-                      // 8메뉴 결제 대기열에 올림 (500P)
                       setPendingPayment({ type: "menu", title: item.title, payload: item });
                     }}
-                    // 👇 변경점 1: className 맨 끝에 'relative'를 추가했습니다! (우측 상단 뱃지 고정용)
-                    className="p-3.5 sm:p-4 bg-[#15072a]/50 border border-[#3b1d6b] rounded-2xl hover:bg-[#1e0c3a] hover:border-[#D4AF37] transition-all text-left group shadow-lg flex flex-col justify-start relative"
+                    disabled={isAnyActionLoading}
+                    className="p-3.5 sm:p-4 bg-[#15072a]/50 border border-[#3b1d6b] rounded-2xl hover:bg-[#1e0c3a] hover:border-[#D4AF37] transition-all text-left group shadow-lg flex flex-col justify-start relative disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <div className="absolute top-2 right-2 bg-[#1c0d33] border border-[#D4AF37]/50 px-2 py-0.5 rounded-md shadow-sm z-10">
                       <span className="text-[10px] font-bold text-[#D4AF37]">
@@ -1801,9 +2090,10 @@ const handlePremiumClick = async () => {
             <button
               type="button"
               onClick={handlePortOnePayment}
-              className="w-full py-3.5 mb-2 bg-gradient-to-r from-[#44237d] to-[#1a0b2e] border-2 border-[#D4AF37] text-[#D4AF37] rounded-xl text-sm font-extrabold hover:border-[#F3E5AB] hover:shadow-[0_0_15px_rgba(212,175,55,0.25)] transition-all"
+              disabled={isLoading("portone")}
+              className="w-full py-3.5 mb-2 bg-gradient-to-r from-[#44237d] to-[#1a0b2e] border-2 border-[#D4AF37] text-[#D4AF37] rounded-xl text-sm font-extrabold hover:border-[#F3E5AB] hover:shadow-[0_0_15px_rgba(212,175,55,0.25)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              💳 카드 결제하기
+              {renderLoadingContent("portone", "💳 카드 결제하기")}
             </button>
 
             {/* 입금자명 입력 및 계좌 안내 (패키지를 선택했을 때만 보임) */}
@@ -1850,38 +2140,15 @@ const handlePremiumClick = async () => {
                 닫기
               </button>
               <button
-                onClick={async () => {
-                  if (!selectedPackage) return alert("구매할 이용권을 선택해 주세요!");
-                  if (!depositorName.trim()) return alert("입금자명을 입력해 주세요!");
-                  if (!user) return alert("로그인 정보가 없습니다. 다시 로그인해 주세요.");
-
-                  const { error } = await supabase.from("deposit_requests").insert({
-                    user_id: user.id,
-                    user_email: user.email || user.user_metadata?.email || "이메일 없음",
-                    depositor_name: depositorName,
-                    amount_krw: selectedPackage.price,
-                    ticket_type: selectedPackage.category,
-                    ticket_count: selectedPackage.tickets,
-                  });
-
-                  if (error) {
-                    console.error("신청 에러:", error);
-                    alert("신청 중 오류가 발생했습니다. 다시 시도해 주세요.");
-                  } else {
-                    alert("✅ 입금 알림이 접수되었습니다!\n관리자 확인 후 1~3분 내로 티켓이 지급됩니다.");
-                    setShowChargeModal(false);
-                    setSelectedPackage(null);
-                    setDepositorName("");
-                  }
-                }}
-                className={`flex-[2] py-3 rounded-xl text-xs font-extrabold shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] ${
+                onClick={handleDepositSubmit}
+                className={`flex-[2] py-3 rounded-xl text-xs font-extrabold shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed ${
                   selectedPackage && depositorName
                     ? "bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] hover:shadow-[0_0_15px_rgba(212,175,55,0.4)]"
                     : "bg-gray-700 text-gray-400 cursor-not-allowed"
                 }`}
-                disabled={!selectedPackage || !depositorName}
+                disabled={!selectedPackage || !depositorName || isLoading("deposit")}
               >
-                입금 완료했어요
+                {renderLoadingContent("deposit", "입금 완료했어요")}
               </button>
             </div>
 
@@ -1948,9 +2215,10 @@ const handlePremiumClick = async () => {
                 </button>
                 <button
                   type="submit"
-                  className="flex-[2] py-3 bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] rounded-xl text-sm font-extrabold hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all"
+                  disabled={isLoading("email")}
+                  className="flex-[2] py-3 bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] rounded-xl text-sm font-extrabold hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  로그인
+                  {renderLoadingContent("email", "로그인")}
                 </button>
               </div>
             </form>
@@ -1980,29 +2248,42 @@ const handlePremiumClick = async () => {
                   setShowGuestModal(false); 
                   handleKakaoLogin();      
                 }}
-                className="w-full flex items-center justify-center gap-3 bg-[#FEE500] hover:bg-[#F4DC00] text-[#000000] text-sm font-bold py-4 rounded-xl transition-all shadow-[0_0_15px_rgba(254,229,0,0.15)]"
+                disabled={isAnyActionLoading}
+                className="w-full flex items-center justify-center gap-3 bg-[#FEE500] hover:bg-[#F4DC00] text-[#000000] text-sm font-bold py-4 rounded-xl transition-all shadow-[0_0_15px_rgba(254,229,0,0.15)] disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M12 3C6.477 3 2 6.425 2 10.648c0 2.706 1.706 5.07 4.3 6.355-.26.965-1.01 3.76-1.04 3.882-.04.144.05.155.12.11 1.05-.67 4.12-2.82 4.12-2.82.82.16 1.66.25 2.5.25 5.523 0 10-3.425 10-7.648C22 6.425 17.523 3 12 3z" fill="#000000"/>
-                </svg>
-                카카오로 1초 만에 시작하기
+                {isLoading("kakao") ? (
+                  <span className="inline-flex items-center gap-2"><ButtonSpinner /> 처리 중...</span>
+                ) : (
+                  <>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M12 3C6.477 3 2 6.425 2 10.648c0 2.706 1.706 5.07 4.3 6.355-.26.965-1.01 3.76-1.04 3.882-.04.144.05.155.12.11 1.05-.67 4.12-2.82 4.12-2.82.82.16 1.66.25 2.5.25 5.523 0 10-3.425 10-7.648C22 6.425 17.523 3 12 3z" fill="#000000"/>
+                    </svg>
+                    카카오로 1초 만에 시작하기
+                  </>
+                )}
               </button>
 
-              {/* 2번 버튼: 구글 로그인 연동 */}
               <button 
                 onClick={() => {
                   setShowGuestModal(false); 
                   handleGoogleLogin();      
                 }}
-                className="w-full py-4 bg-white text-[#1a0b2e] rounded-xl font-extrabold text-sm flex items-center justify-center gap-3 shadow-[0_0_15px_rgba(255,255,255,0.2)] transition-all hover:bg-gray-100"
+                disabled={isAnyActionLoading}
+                className="w-full py-4 bg-white text-[#1a0b2e] rounded-xl font-extrabold text-sm flex items-center justify-center gap-3 shadow-[0_0_15px_rgba(255,255,255,0.2)] transition-all hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                </svg>
-                구글로 1초 만에 시작하기
+                {isLoading("google") ? (
+                  <span className="inline-flex items-center gap-2"><ButtonSpinner /> 처리 중...</span>
+                ) : (
+                  <>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                    </svg>
+                    구글로 1초 만에 시작하기
+                  </>
+                )}
               </button>
             </div>
 
@@ -2039,58 +2320,18 @@ const handlePremiumClick = async () => {
 
             <div className="flex gap-3 mt-6">
               <button 
-                onClick={() => setPendingPayment(null)} 
-                className="flex-1 py-3 bg-[#1c0d33] border border-[#3b1d6b] text-[#a48cd1] rounded-xl font-bold text-sm hover:bg-[#2a144a] transition-colors"
+                onClick={() => setPendingPayment(null)}
+                disabled={isLoading("pending")}
+                className="flex-1 py-3 bg-[#1c0d33] border border-[#3b1d6b] text-[#a48cd1] rounded-xl font-bold text-sm hover:bg-[#2a144a] transition-colors disabled:opacity-50"
               >
                 취소
               </button>
               <button 
-                onClick={async () => {
-                  const isPremium = pendingPayment.type === "premium";
-                  const currentTicketCount = isPremium ? premiumTicket : standardTicket;
-                  const ticketField = isPremium ? "premium_ticket" : "standard_ticket";
-
-                  if (currentTicketCount < 1) {
-                    alert("이용권이 부족합니다. 이용권 구매 후 이용해주세요!");
-                    setPendingPayment(null);
-                    setShowChargeModal(true);
-                    return;
-                  }
-
-                  const newTicketCount = currentTicketCount - 1;
-                  const { error } = await supabase
-                    .from("user_profiles")
-                    .update({ [ticketField]: newTicketCount })
-                    .eq("id", user.id);
-
-                  if (error) {
-                    console.error("DB 티켓 차감 에러:", error);
-                    alert("결제 처리 중 오류가 발생했습니다.");
-                    return;
-                  }
-
-                  if (isPremium) {
-                    setPremiumTicket(newTicketCount);
-                  } else {
-                    setStandardTicket(newTicketCount);
-                  }
-
-                  const action = pendingPayment;
-                  setPendingPayment(null);
-
-                  if (action.type === "premium") {
-                    handlePremiumClick();
-                  } else if (action.type === "menu") {
-                    handleMenuClick(action.payload.title, action.payload.title, action.payload.desc);
-                  } else if (action.type === "followup") {
-                    handleFollowUp(action.payload);
-                  } else if (action.type === "other_saju") {
-                    handleAnalyze({ skipFreeLimitCheck: true });
-                  }
-                }} 
-                className="flex-[2] py-3 bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] rounded-xl font-bold text-sm shadow-[0_0_15px_rgba(212,175,55,0.3)] hover:brightness-110 transition-all"
+                onClick={handlePendingPaymentConfirm}
+                disabled={isLoading("pending")}
+                className="flex-[2] py-3 bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] rounded-xl font-bold text-sm shadow-[0_0_15px_rgba(212,175,55,0.3)] hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                동의하고 분석 시작
+                {renderLoadingContent("pending", "동의하고 분석 시작")}
               </button>
             </div>
           </div>

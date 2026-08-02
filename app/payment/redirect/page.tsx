@@ -3,6 +3,7 @@
 import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { safeSessionGetJSON, safeSessionRemoveItem } from "@/lib/safe-storage";
 
 const DEFAULT_PACKAGE = {
   amount_krw: 3900,
@@ -30,24 +31,19 @@ type ResolvedPackage = {
 };
 
 function resolvePaymentPackage(): ResolvedPackage {
-  try {
-    const raw = sessionStorage.getItem("pending_payment_package");
-    if (raw) {
-      const pkg = JSON.parse(raw) as PendingPackage;
-      const passName = pkg.category === "premium" ? "프리미엄 패스" : "스탠다드 패스";
-      const isPremium = pkg.category === "premium";
-      return {
-        amount_krw: pkg.price,
-        ticket_type: pkg.category,
-        ticket_count: pkg.tickets,
-        order_name: `[오늘의사주] ${passName} ${pkg.label}`,
-        label: pkg.label,
-        isPremium,
-        ticketField: isPremium ? "premium_ticket" : "standard_ticket",
-      };
-    }
-  } catch (error) {
-    console.error("pending_payment_package 파싱 실패:", error);
+  const pkg = safeSessionGetJSON<PendingPackage | null>("pending_payment_package", null);
+  if (pkg) {
+    const passName = pkg.category === "premium" ? "프리미엄 패스" : "스탠다드 패스";
+    const isPremium = pkg.category === "premium";
+    return {
+      amount_krw: pkg.price,
+      ticket_type: pkg.category,
+      ticket_count: pkg.tickets,
+      order_name: `[오늘의사주] ${passName} ${pkg.label}`,
+      label: pkg.label,
+      isPremium,
+      ticketField: isPremium ? "premium_ticket" : "standard_ticket",
+    };
   }
 
   return {
@@ -127,7 +123,7 @@ function PaymentRedirectContent() {
           .maybeSingle();
 
         if (existingLog) {
-          sessionStorage.removeItem("pending_payment_package");
+          safeSessionRemoveItem("pending_payment_package");
           alert(`✅ 결제가 완료되었습니다!\n[${pkg.label}] ${pkg.ticket_count}장이 충전되었습니다! 🎉`);
           router.replace("/");
           return;
@@ -166,7 +162,7 @@ function PaymentRedirectContent() {
         // 티켓 충전 성공 직후 payment_logs에 결제 영수증 저장
         await savePaymentReceipt(user, pkg, paymentId);
 
-        sessionStorage.removeItem("pending_payment_package");
+        safeSessionRemoveItem("pending_payment_package");
         alert(`✅ 결제가 완료되었습니다!\n[${pkg.label}] ${pkg.ticket_count}장이 충전되었습니다! 🎉`);
         router.replace("/");
         return;

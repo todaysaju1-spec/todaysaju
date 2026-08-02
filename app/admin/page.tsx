@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { safeGetItem, safeSetItem } from "@/lib/safe-storage";
 import { CheckCircle2, Wallet, Users, CreditCard, Lock, X, TrendingUp, ChevronLeft, ChevronRight, DollarSign, Receipt, Percent, Sparkles, Ticket } from "lucide-react";
 
 const ADMIN_PASSWORD_KEY = "admin_password";
@@ -72,9 +73,9 @@ export default function AdminDashboard() {
   const [detailTab, setDetailTab] = useState<"charges" | "sajus">("charges");
 
   useEffect(() => {
-    const stored = localStorage.getItem(ADMIN_PASSWORD_KEY);
+    const stored = safeGetItem(ADMIN_PASSWORD_KEY);
     if (!stored) {
-      localStorage.setItem(ADMIN_PASSWORD_KEY, DEFAULT_PASSWORD);
+      safeSetItem(ADMIN_PASSWORD_KEY, DEFAULT_PASSWORD);
     }
     setIsInitialized(true);
   }, []);
@@ -88,7 +89,7 @@ export default function AdminDashboard() {
   }, [activeTab, isAuthenticated]);
 
   const getStoredPassword = () => {
-    return localStorage.getItem(ADMIN_PASSWORD_KEY) || DEFAULT_PASSWORD;
+    return safeGetItem(ADMIN_PASSWORD_KEY, DEFAULT_PASSWORD);
   };
 
   const handleLogin = (e: React.FormEvent) => {
@@ -138,7 +139,7 @@ export default function AdminDashboard() {
       return;
     }
 
-    localStorage.setItem(ADMIN_PASSWORD_KEY, newPassword);
+    safeSetItem(ADMIN_PASSWORD_KEY, newPassword);
     alert("✅ 비밀번호가 성공적으로 변경되었습니다.");
     handleClosePasswordModal();
   };
