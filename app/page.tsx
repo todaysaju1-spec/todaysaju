@@ -6,6 +6,7 @@ import { Sparkles, Lock, Wallet, ArrowRight, Star, Moon, Compass, CheckCircle2, 
 import { supabase } from "@/lib/supabase"; // Supabase 연동 클라이언트
 import { calculateSaju } from "ssaju";
 import { safeGetJSON, safeSetJSON, safeSetItem, safeSessionSetJSON } from "@/lib/safe-storage";
+import { getPartnerWebhookFields, hasPartnerBirthInput } from "@/lib/partner-saju-payload";
 import ButtonSpinner from "@/components/ButtonSpinner";
 import { useToast } from "@/components/ToastProvider";
 
@@ -481,13 +482,13 @@ const saveMyProfile = async (userId: string) => {
     gender: userInfo.gender,
     marital_status: userInfo.maritalStatus,
     has_children: userInfo.hasChildren,
-    partner_name: showPartner ? partnerInfo.name : null,
-    partner_birth: showPartner ? partnerInfo.birth : null,
-    partner_gender: showPartner ? partnerInfo.gender : null,
-    partner_hour: showPartner ? partnerInfo.hour : null,
-    partner_min: showPartner ? partnerInfo.min : null,
-    partner_calendar_type: showPartner ? partnerInfo.calendarType : null,
-    partner_is_time_known: showPartner ? partnerInfo.isTimeKnown : false
+    partner_name: hasPartnerBirthInput(partnerInfo) ? partnerInfo.name : null,
+    partner_birth: hasPartnerBirthInput(partnerInfo) ? partnerInfo.birth : null,
+    partner_gender: hasPartnerBirthInput(partnerInfo) ? partnerInfo.gender : null,
+    partner_hour: hasPartnerBirthInput(partnerInfo) ? partnerInfo.hour : null,
+    partner_min: hasPartnerBirthInput(partnerInfo) ? partnerInfo.min : null,
+    partner_calendar_type: hasPartnerBirthInput(partnerInfo) ? partnerInfo.calendarType : null,
+    partner_is_time_known: hasPartnerBirthInput(partnerInfo) ? partnerInfo.isTimeKnown : false
   });
 
   if (error) {
@@ -825,9 +826,9 @@ const handleUseTicketAndRetry = async () => {
         action: "analyze_saju",
         name: userInfo.name,
         sajuData: llmFriendlyData,
-        maritalStatus: userInfo.maritalStatus, // 👈 n8n으로 결혼유무 전송
-        hasChildren: userInfo.hasChildren,      // 👈 n8n으로 자녀유무 전송
-        partnerData: showPartner ? partnerInfo : null
+        maritalStatus: userInfo.maritalStatus,
+        hasChildren: userInfo.hasChildren,
+        ...getPartnerWebhookFields(partnerInfo),
       }),
     });
 
@@ -861,7 +862,7 @@ const handleUseTicketAndRetry = async () => {
         saveSajuHistory("standard", `[${userInfo.name}]님의 일일 운세`, data.result_text);
       }
 
-      if (showPartner && (partnerInfo.name?.trim() || partnerInfo.birth?.trim())) {
+      if (hasPartnerBirthInput(partnerInfo)) {
         savePartnerInfoToStorage(partnerInfo);
       }
     } else {
@@ -980,13 +981,13 @@ const handleFollowUp = async (question: string) => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "menu_click", // 👈 8개 메뉴 클릭 신호
+          action: "menu_click",
           name: userInfo.name,
           sajuData: llmFriendlyData,
-          category: title, // 클릭한 메뉴 이름 (직업운, 건강운 등)
+          category: title,
           maritalStatus: userInfo.maritalStatus,
-          hasChildren: userInfo.hasChildren,             // 👈 자녀 유무 추가
-          partnerData: showPartner ? partnerInfo : null  // 👈 파트너 정보 추가
+          hasChildren: userInfo.hasChildren,
+          ...getPartnerWebhookFields(partnerInfo),
         }),
       });
 
@@ -1048,24 +1049,7 @@ const handlePremiumClick = async () => {
       gender: userInfo.gender === "남자" ? "남" : "여",
     });
     const llmFriendlyData = sajuResult.toCompact();
-
-    let partnerLlmFriendlyData = null;
-    if (showPartner && partnerInfo.birth) {
-      const pYearPrefix = parseInt(partnerInfo.birth.slice(0, 2)) > 30 ? 1900 : 2000;
-      const pBirthYear = pYearPrefix + parseInt(partnerInfo.birth.slice(0, 2));
-      const pBirthMonth = parseInt(partnerInfo.birth.slice(2, 4));
-      const pBirthDay = parseInt(partnerInfo.birth.slice(4, 6));
-
-      const partnerSajuResult = calculateSaju({
-        year: pBirthYear,
-        month: pBirthMonth,
-        day: pBirthDay,
-        hour: partnerInfo.hour === "99" ? undefined : parseInt(partnerInfo.hour),
-        minute: partnerInfo.hour === "99" ? undefined : parseInt(partnerInfo.min),
-        gender: partnerInfo.gender === "남자" ? "남" : "여",
-      });
-      partnerLlmFriendlyData = partnerSajuResult.toCompact();
-    }
+    const partnerFields = getPartnerWebhookFields(partnerInfo);
 
     // 4. n8n 프리미엄 노드 호출
     const webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL || "";
@@ -1073,13 +1057,12 @@ const handlePremiumClick = async () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        action: "premium_saju", // 👈 n8n의 프리미엄 노드 분기점
+        action: "premium_saju",
         name: userInfo.name,
         sajuData: llmFriendlyData,
         maritalStatus: userInfo.maritalStatus,
         hasChildren: userInfo.hasChildren,
-        partnerData: showPartner ? partnerInfo : null, 
-        partnerSajuData: partnerLlmFriendlyData
+        ...partnerFields,
       }),
     });
 
