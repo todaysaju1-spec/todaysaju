@@ -31,7 +31,6 @@ type FortuneMenuItem = {
 };
 
 const FORTUNE_MENU_ITEMS: FortuneMenuItem[] = [
-  { icon: "📊", title: "내 사주 명식표", desc: "전문가용 만세력 차트", isFree: true },
   { icon: "☀️", title: "오늘의 운세", desc: "오늘 하루의 기운" },
   { icon: "💭", title: "상대방 속마음", desc: "나를 향한 진짜 태도" },
   { icon: "⚡", title: "월별 풀이", desc: "주의할 날/기간" },
@@ -1158,6 +1157,9 @@ const handlePremiumClick = async () => {
       setPendingPayment(null);
       setLoadingAction(null);
 
+      setShowSajuDashboard(false);
+      setDashboardSajuResult(null);
+
       if (action.type === "premium") {
         await handlePremiumClick();
       } else if (action.type === "menu") {
@@ -1985,6 +1987,29 @@ const handlePremiumClick = async () => {
           <div className="mt-12 space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700 relative z-10 pb-10">
             <div className="text-center">
               <h3 className="text-xl font-bold text-white mb-6">지금 궁금한 운세를 선택하세요</h3>
+
+              {/* 📊 무료 만세력 대형 버튼 */}
+              <div className="mb-4 relative z-20">
+                <button
+                  type="button"
+                  onClick={handleOpenFreeManseryeok}
+                  disabled={isAnyActionLoading}
+                  className="w-full bg-gradient-to-r from-[#1a0b2e] to-[#2a144a] border-2 border-red-500/50 p-6 rounded-3xl text-left relative z-20 overflow-hidden group hover:border-red-400 transition-all cursor-pointer shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="absolute top-0 right-0 bg-red-500 text-white font-extrabold text-[10px] px-3 py-1 rounded-bl-xl z-30">
+                    🎁 무료
+                  </div>
+                  <div className="flex items-center gap-3 relative z-30 pr-16">
+                    <div className="text-3xl">📊</div>
+                    <div>
+                      <div className="text-white font-bold text-lg">내 사주 명식표 무료로 바로 보기</div>
+                      <div className="text-[#a48cd1] text-xs mt-1">
+                        나의 타고난 오행, 십성, 대운/세운의 흐름을 전문가용 차트로 한눈에 확인하세요.
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              </div>
               
               {/* 👑 프리미엄 사주 버튼 (비회원/회원 분기 처리 완료) */}
               <div className="mb-6 relative z-20">
@@ -2021,7 +2046,7 @@ const handlePremiumClick = async () => {
                 </button>
               </div>
 
-              {/* 운세 메뉴 그리드 (무료 만세력 + 유료 테마) */}
+              {/* 운세 메뉴 그리드 (유료 테마) */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
                 {FORTUNE_MENU_ITEMS.map((item) => (
                   <button
