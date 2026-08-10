@@ -4,11 +4,13 @@ import { useState, useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, Lock, Wallet, ArrowRight, Star, Moon, Compass, CheckCircle2, Gift, MessageCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase"; // Supabase 연동 클라이언트
-import { calculateSaju } from "ssaju";
+import { calculateSaju, type SajuResult } from "ssaju";
 import { safeGetJSON, safeSetJSON, safeSetItem, safeSessionSetJSON } from "@/lib/safe-storage";
 import { getPartnerWebhookFields, hasPartnerBirthInput } from "@/lib/partner-saju-payload";
+import { calculateSajuFromUserInfo } from "@/lib/saju-dashboard-utils";
 import ButtonSpinner from "@/components/ButtonSpinner";
 import { useToast } from "@/components/ToastProvider";
+import SajuDashboard from "@/components/saju/SajuDashboard";
 
 const PORTONE_STORE_ID = "store-252438e8-5d98-47ec-b2a6-e040643cf1a6";
 const PORTONE_CHANNEL_KEY = "channel-key-fd3937f3-b47f-4de6-9a08-16c085c44f46";
@@ -19,6 +21,27 @@ const FREE_SAJU_LIMIT_MESSAGE =
   "오늘의 무료 사주는 하루에 한 번만 제공됩니다. [사주 보관함]에서 오늘 받은 운세를 다시 확인해 보세요! 🍀";
 
 const PARTNER_INFO_STORAGE_KEY = "saved_partner_info";
+
+type FortuneMenuItem = {
+  icon: string;
+  title: string;
+  desc: string;
+  isFree?: boolean;
+};
+
+const FORTUNE_MENU_ITEMS: FortuneMenuItem[] = [
+  { icon: "📊", title: "내 사주 명식표", desc: "전문가용 만세력 차트", isFree: true },
+  { icon: "☀️", title: "오늘의 운세", desc: "오늘 하루의 기운" },
+  { icon: "💭", title: "상대방 속마음", desc: "나를 향한 진짜 태도" },
+  { icon: "⚡", title: "월별 풀이", desc: "주의할 날/기간" },
+  { icon: "📈", title: "연도별 흐름", desc: "해마다의 기운" },
+  { icon: "💼", title: "직업운", desc: "적합한 직업" },
+  { icon: "💰", title: "금전/재물", desc: "돈 들어오는 시기" },
+  { icon: "✨", title: "삶의 전환점", desc: "운이 바뀌는 시기" },
+  { icon: "❤️", title: "연애/가족", desc: "관계의 흐름" },
+  { icon: "🌿", title: "건강운", desc: "체력 관리 시기" },
+  { icon: "⏳", title: "인생 흐름", desc: "지금 내 운의 위치" },
+];
 
 type StoredPartnerInfo = {
   name: string;
@@ -165,6 +188,8 @@ const [passwordInput, setPasswordInput] = useState("");
  // 이용권 구매용 상태 추가
   const [selectedPackage, setSelectedPackage] = useState<any>(null);
   const [depositorName, setDepositorName] = useState("");
+  const [showSajuDashboard, setShowSajuDashboard] = useState(false);
+  const [dashboardSajuResult, setDashboardSajuResult] = useState<SajuResult | null>(null);
 
   const STANDARD_PACKAGES = [
     { id: "std-1", category: "standard", price: 3900, tickets: 1, label: "1회권" },
@@ -1149,6 +1174,41 @@ const handlePremiumClick = async () => {
     }
   };
 
+  const handleOpenFreeManseryeok = () => {
+    if (isAnyActionLoading) return;
+
+    if (!userInfo.name?.trim() || !userInfo.birth?.trim()) {
+      showToast("먼저 상단에 사주 명식(이름·생년월일)을 입력해 주세요.", "warning");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    const result = calculateSajuFromUserInfo(userInfo);
+    if (!result) {
+      showToast("생년월일 형식을 확인해 주세요. (6자리, 예: 900515)", "warning");
+      return;
+    }
+
+    setDashboardSajuResult(result);
+    setShowSajuDashboard(true);
+  };
+
+  const handleFortuneMenuClick = (item: FortuneMenuItem) => {
+    if (isAnyActionLoading) return;
+
+    if (item.isFree) {
+      handleOpenFreeManseryeok();
+      return;
+    }
+
+    if (!user) {
+      setShowGuestModal(true);
+      return;
+    }
+
+    setPendingPayment({ type: "menu", title: item.title, payload: item });
+  };
+
   return (
     <main className="min-h-screen relative overflow-hidden bg-[#0a0514] text-[#e0d6f5] font-sans selection:bg-[#D4AF37]/30">
       
@@ -1941,45 +2001,31 @@ const handlePremiumClick = async () => {
                 </button>
               </div>
 
-              {/* 10개 메뉴 그리드 */}
+              {/* 운세 메뉴 그리드 (무료 만세력 + 유료 테마) */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-                {[
-                  { icon: "☀️", title: "오늘의 운세", desc: "오늘 하루의 기운" },
-                  { icon: "💭", title: "상대방 속마음", desc: "나를 향한 진짜 태도" },
-                  { icon: "⚡", title: "월별 풀이", desc: "주의할 날/기간" },
-                  { icon: "📈", title: "연도별 흐름", desc: "해마다의 기운" },
-                  { icon: "💼", title: "직업운", desc: "적합한 직업" },
-                  { icon: "💰", title: "금전/재물", desc: "돈 들어오는 시기" },
-                  { icon: "✨", title: "삶의 전환점", desc: "운이 바뀌는 시기" },
-                  { icon: "❤️", title: "연애/가족", desc: "관계의 흐름" },
-                  { icon: "🌿", title: "건강운", desc: "체력 관리 시기" },
-                  { icon: "⏳", title: "인생 흐름", desc: "지금 내 운의 위치" },
-                ].map((item, idx) => (
+                {FORTUNE_MENU_ITEMS.map((item) => (
                   <button
-                    key={idx}
-                    onClick={() => {
-                      if (isAnyActionLoading) return;
-                      if (!user) {
-                        setShowGuestModal(true);
-                        return;
-                      }
-                      setPendingPayment({ type: "menu", title: item.title, payload: item });
-                    }}
+                    key={item.title}
+                    onClick={() => handleFortuneMenuClick(item)}
                     disabled={isAnyActionLoading}
                     className="p-3.5 sm:p-4 bg-[#15072a]/50 border border-[#3b1d6b] rounded-2xl hover:bg-[#1e0c3a] hover:border-[#D4AF37] transition-all text-left group shadow-lg flex flex-col justify-start relative disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <div className="absolute top-2 right-2 bg-[#1c0d33] border border-[#D4AF37]/50 px-2 py-0.5 rounded-md shadow-sm z-10">
-                      <span className="text-[10px] font-bold text-[#D4AF37]">
-                        🎟️ 1장
-                      </span>
+                    <div className="absolute top-2 right-2 z-10">
+                      {item.isFree ? (
+                        <span className="text-[10px] font-bold text-white bg-red-500/80 px-2 py-0.5 rounded-md shadow-sm">
+                          🎁 무료
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-[#D4AF37] bg-[#1c0d33] border border-[#D4AF37]/50 px-2 py-0.5 rounded-md shadow-sm">
+                          🎟️ 1장
+                        </span>
+                      )}
                     </div>
 
                     <div className="text-2xl mb-2 sm:mb-2.5 relative z-10">{item.icon}</div>
-                    {/* break-keep 추가: "월별 풀이"가 "월별" / "풀이" 로 예쁘게 떨어짐 */}
                     <div className="font-bold text-white group-hover:text-[#D4AF37] text-[13px] sm:text-sm md:text-base break-keep leading-snug relative z-10">
                       {item.title}
                     </div>
-                    {/* 서브 텍스트도 단어 단위로 줄바꿈되도록 최적화 */}
                     <div className="text-[10px] sm:text-[11px] md:text-xs text-[#a48cd1] mt-1 sm:mt-1.5 break-keep leading-tight relative z-10">
                       {item.desc}
                     </div>
@@ -2501,6 +2547,18 @@ const handlePremiumClick = async () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 📊 [모달] 무료 전문가용 만세력 대시보드 */}
+      {showSajuDashboard && dashboardSajuResult && (
+        <SajuDashboard
+          name={userInfo.name}
+          sajuResult={dashboardSajuResult}
+          onClose={() => {
+            setShowSajuDashboard(false);
+            setDashboardSajuResult(null);
+          }}
+        />
       )}
     </main>
   );
