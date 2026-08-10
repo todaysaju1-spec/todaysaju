@@ -2,9 +2,12 @@
 
 import type { SajuResult } from "ssaju";
 import { getOhangForGanzhi, getOhangTheme, STEM_TO_OHANG } from "@/lib/saju-dashboard-utils";
+import { buildDaeunSeyunInsight, buildPillarsInsight, PREMIUM_MENU_KEY } from "@/lib/saju-dashboard-insights";
+import SajuSectionCta from "./SajuSectionCta";
 
 type MansaeryeokGridProps = {
   sajuResult: SajuResult;
+  onMenuSelect?: (menuTitle: string) => void;
 };
 
 function GanzhiCell({
@@ -19,26 +22,33 @@ function GanzhiCell({
   const ohang = getOhangForGanzhi(ganzhi);
   const theme = getOhangTheme(ohang);
   const stem = ganzhi.charAt(0);
-  const branch = ganzhi.charAt(1);
 
   return (
     <div
-      className={`rounded-xl border p-2 text-center min-w-[72px] transition-all ${
+      className={`rounded-xl border p-2 md:p-3 text-center min-w-[72px] transition-all ${
         highlight
           ? `ring-2 ring-[#D4AF37] ring-offset-2 ring-offset-[#120524] ${theme.bg} ${theme.border}`
           : `${theme.bgSoft} ${theme.border}`
       }`}
     >
-      <div className={`text-lg font-bold tracking-wider ${theme.text}`}>{ganzhi}</div>
-      {subLabel && <div className="text-[9px] text-gray-400 mt-0.5 truncate">{subLabel}</div>}
-      <div className="text-[8px] opacity-70 mt-0.5">
+      <div className={`text-lg md:text-xl lg:text-2xl font-bold tracking-wider ${theme.text}`}>{ganzhi}</div>
+      {subLabel && (
+        <div className="text-[10px] md:text-xs text-gray-400 mt-0.5 truncate">{subLabel}</div>
+      )}
+      <div className="text-[9px] md:text-[10px] opacity-70 mt-0.5">
         {STEM_TO_OHANG[stem]}/{ohang}
       </div>
     </div>
   );
 }
 
-function PillarsRow({ sajuResult }: { sajuResult: SajuResult }) {
+function PillarsRow({
+  sajuResult,
+  onMenuSelect,
+}: {
+  sajuResult: SajuResult;
+  onMenuSelect?: (menuTitle: string) => void;
+}) {
   const pillars = [
     { key: "hour", label: "시주", ganzhi: sajuResult.pillars.hour, tg: sajuResult.tenGods.hour },
     { key: "day", label: "일주", ganzhi: sajuResult.pillars.day, tg: sajuResult.tenGods.day },
@@ -47,12 +57,12 @@ function PillarsRow({ sajuResult }: { sajuResult: SajuResult }) {
   ];
 
   return (
-    <div className="rounded-2xl border border-[#3b1d6b]/80 bg-[#0a0514]/80 p-4">
-      <h4 className="text-sm font-bold text-[#D4AF37] mb-3">사주 원국 (四柱)</h4>
+    <div className="rounded-2xl border border-[#3b1d6b]/80 bg-[#0a0514]/80 p-4 md:p-5">
+      <h4 className="text-sm md:text-base lg:text-lg font-bold text-[#D4AF37] mb-3">사주 원국 (四柱)</h4>
       <div className="grid grid-cols-4 gap-2 sm:gap-3">
         {pillars.map((p) => (
           <div key={p.key} className="flex flex-col items-center gap-1">
-            <span className="text-[10px] text-[#a48cd1] font-bold">{p.label}</span>
+            <span className="text-[10px] md:text-xs text-[#a48cd1] font-bold">{p.label}</span>
             <GanzhiCell
               ganzhi={p.ganzhi}
               subLabel={`${p.tg.stem}/${p.tg.branch}`}
@@ -61,6 +71,12 @@ function PillarsRow({ sajuResult }: { sajuResult: SajuResult }) {
           </div>
         ))}
       </div>
+
+      <SajuSectionCta
+        comment={buildPillarsInsight(sajuResult)}
+        onMenuSelect={onMenuSelect}
+        buttons={[{ label: "👑 프리미엄 총 사주운세 (BEST)", menuTitle: PREMIUM_MENU_KEY }]}
+      />
     </div>
   );
 }
@@ -69,16 +85,16 @@ function DaeunTable({ sajuResult }: { sajuResult: SajuResult }) {
   const current = sajuResult.daeun.current;
 
   return (
-    <div className="rounded-2xl border border-[#3b1d6b]/80 bg-[#0a0514]/80 p-4 overflow-x-auto">
-      <h4 className="text-sm font-bold text-[#D4AF37] mb-3">
+    <div className="overflow-x-auto">
+      <h4 className="text-sm md:text-base lg:text-lg font-bold text-[#D4AF37] mb-3">
         대운 (大運)
         {current && (
-          <span className="ml-2 text-[10px] font-normal text-[#a48cd1]">
+          <span className="ml-2 text-[10px] md:text-xs font-normal text-[#a48cd1]">
             현재 ★ {current.ganzhi} ({current.startAge}~{current.endAge}세)
           </span>
         )}
       </h4>
-      <table className="w-full text-xs border-collapse min-w-[480px]">
+      <table className="w-full text-xs md:text-sm lg:text-base border-collapse min-w-[480px]">
         <thead>
           <tr className="text-[#a48cd1] border-b border-[#3b1d6b]">
             <th className="py-2 px-1 text-left font-medium">나이</th>
@@ -105,7 +121,7 @@ function DaeunTable({ sajuResult }: { sajuResult: SajuResult }) {
                 <td className="py-2 px-1 text-gray-400">{item.startYear}</td>
                 <td className="py-2 px-1">
                   <span
-                    className={`inline-block px-2 py-1 rounded-lg font-bold ${theme.bg} ${theme.text} border ${theme.border}`}
+                    className={`inline-block px-2 py-1 rounded-lg font-bold text-xs md:text-sm ${theme.bg} ${theme.text} border ${theme.border}`}
                   >
                     {item.ganzhi}
                   </span>
@@ -129,32 +145,34 @@ function SeyunTable({ sajuResult }: { sajuResult: SajuResult }) {
   );
 
   return (
-    <div className="rounded-2xl border border-[#3b1d6b]/80 bg-[#0a0514]/80 p-4 overflow-x-auto">
-      <h4 className="text-sm font-bold text-[#D4AF37] mb-3">
+    <div>
+      <h4 className="text-sm md:text-base lg:text-lg font-bold text-[#D4AF37] mb-3 mt-5">
         세운 (歲運) · {currentYear - 3}~{currentYear + 5}
       </h4>
-      <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-2">
+      <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2">
         {rows.map((item) => {
           const isCurrent = item.year === currentYear;
           const theme = getOhangTheme(getOhangForGanzhi(item.ganzhi));
           return (
             <div
               key={item.year}
-              className={`rounded-xl border p-2 text-center ${
+              className={`rounded-xl border p-2 md:p-2.5 text-center ${
                 isCurrent
                   ? "ring-2 ring-[#D4AF37] bg-[#D4AF37]/10 border-[#D4AF37]/60"
                   : `${theme.bgSoft} ${theme.border}`
               }`}
             >
-              <div className={`text-[10px] font-bold ${isCurrent ? "text-[#D4AF37]" : "text-gray-400"}`}>
+              <div
+                className={`text-[10px] md:text-xs font-bold ${isCurrent ? "text-[#D4AF37]" : "text-gray-400"}`}
+              >
                 {isCurrent ? "★ " : ""}
                 {item.year}
               </div>
-              <div className={`text-base font-bold mt-1 ${theme.text}`}>{item.ganzhi}</div>
-              <div className="text-[8px] text-gray-500 mt-1 leading-tight">
+              <div className={`text-base md:text-lg font-bold mt-1 ${theme.text}`}>{item.ganzhi}</div>
+              <div className="text-[9px] md:text-[10px] text-gray-500 mt-1 leading-tight">
                 {item.tenGodStem}/{item.tenGodBranch}
               </div>
-              <div className="text-[8px] text-gray-600">{item.stage12}</div>
+              <div className="text-[9px] md:text-[10px] text-gray-600">{item.stage12}</div>
             </div>
           );
         })}
@@ -163,12 +181,35 @@ function SeyunTable({ sajuResult }: { sajuResult: SajuResult }) {
   );
 }
 
-export default function MansaeryeokGrid({ sajuResult }: MansaeryeokGridProps) {
+function DaeunSeyunSection({
+  sajuResult,
+  onMenuSelect,
+}: {
+  sajuResult: SajuResult;
+  onMenuSelect?: (menuTitle: string) => void;
+}) {
   return (
-    <div className="space-y-4">
-      <PillarsRow sajuResult={sajuResult} />
+    <div className="rounded-2xl border border-[#3b1d6b]/80 bg-[#0a0514]/80 p-4 md:p-5 overflow-x-auto">
       <DaeunTable sajuResult={sajuResult} />
       <SeyunTable sajuResult={sajuResult} />
+
+      <SajuSectionCta
+        comment={buildDaeunSeyunInsight(sajuResult)}
+        onMenuSelect={onMenuSelect}
+        buttons={[
+          { label: "⚡ 월별 풀이 보기", menuTitle: "월별 풀이" },
+          { label: "✨ 삶의 전환점 확인", menuTitle: "삶의 전환점" },
+        ]}
+      />
+    </div>
+  );
+}
+
+export default function MansaeryeokGrid({ sajuResult, onMenuSelect }: MansaeryeokGridProps) {
+  return (
+    <div className="space-y-4">
+      <PillarsRow sajuResult={sajuResult} onMenuSelect={onMenuSelect} />
+      <DaeunSeyunSection sajuResult={sajuResult} onMenuSelect={onMenuSelect} />
     </div>
   );
 }

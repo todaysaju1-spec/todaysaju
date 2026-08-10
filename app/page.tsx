@@ -8,6 +8,7 @@ import { calculateSaju, type SajuResult } from "ssaju";
 import { safeGetJSON, safeSetJSON, safeSetItem, safeSessionSetJSON } from "@/lib/safe-storage";
 import { getPartnerWebhookFields, hasPartnerBirthInput } from "@/lib/partner-saju-payload";
 import { calculateSajuFromUserInfo } from "@/lib/saju-dashboard-utils";
+import { PREMIUM_MENU_KEY } from "@/lib/saju-dashboard-insights";
 import ButtonSpinner from "@/components/ButtonSpinner";
 import { useToast } from "@/components/ToastProvider";
 import SajuDashboard from "@/components/saju/SajuDashboard";
@@ -1209,6 +1210,25 @@ const handlePremiumClick = async () => {
     setPendingPayment({ type: "menu", title: item.title, payload: item });
   };
 
+  const handleDashboardMenuSelect = (menuTitle: string) => {
+    if (!user) {
+      setShowGuestModal(true);
+      return;
+    }
+
+    if (menuTitle === PREMIUM_MENU_KEY) {
+      setPendingPayment({ type: "premium", title: "프리미엄 인생 마스터플랜", payload: null });
+      return;
+    }
+
+    const item = FORTUNE_MENU_ITEMS.find((m) => m.title === menuTitle);
+    if (item && !item.isFree) {
+      setPendingPayment({ type: "menu", title: item.title, payload: item });
+    }
+  };
+
+  const modalOverlayZ = showSajuDashboard ? "z-[120]" : "z-[100]";
+
   return (
     <main className="min-h-screen relative overflow-hidden bg-[#0a0514] text-[#e0d6f5] font-sans selection:bg-[#D4AF37]/30">
       
@@ -2267,7 +2287,7 @@ const handlePremiumClick = async () => {
 
       {/* 🎁 [모달] 비회원 로그인 유도 (1회권 삭제, 무조건 가입 유도) */}
       {showGuestModal && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[100] flex items-center justify-center p-5 animate-in fade-in">
+        <div className={`fixed inset-0 bg-black/85 backdrop-blur-sm ${modalOverlayZ} flex items-center justify-center p-5 animate-in fade-in`}>
           <div className="bg-[#120524] border border-[#D4AF37]/50 w-full max-w-sm rounded-3xl p-6 shadow-2xl relative">
             <div className="text-center mb-6">
               <div className="inline-block bg-[#D4AF37]/20 p-3 rounded-full mb-3">
@@ -2338,7 +2358,7 @@ const handlePremiumClick = async () => {
       {/* 👇👇👇 [여기에 복사해서 붙여넣으세요!] 통합 결제 모달창 👇👇👇 */}
       {/* 💳 [통합 모달] 이용권 차감 및 분석 시작 */}
       {pendingPayment && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[100] flex items-center justify-center p-5 animate-in fade-in">
+        <div className={`fixed inset-0 bg-black/85 backdrop-blur-sm ${modalOverlayZ} flex items-center justify-center p-5 animate-in fade-in`}>
           <div className="bg-[#120524] border border-[#D4AF37]/50 w-full max-w-sm rounded-3xl p-6 shadow-2xl relative overflow-hidden">
             <div className="text-center space-y-4">
               <div className="text-4xl">
@@ -2558,6 +2578,7 @@ const handlePremiumClick = async () => {
             setShowSajuDashboard(false);
             setDashboardSajuResult(null);
           }}
+          onMenuSelect={handleDashboardMenuSelect}
         />
       )}
     </main>
