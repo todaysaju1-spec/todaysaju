@@ -9,6 +9,7 @@ import { safeGetJSON, safeSetJSON, safeSetItem, safeSessionSetJSON } from "@/lib
 import { getPartnerWebhookFields, hasPartnerBirthInput } from "@/lib/partner-saju-payload";
 import { calculateSajuFromUserInfo } from "@/lib/saju-dashboard-utils";
 import { PREMIUM_MENU_KEY } from "@/lib/saju-dashboard-insights";
+import { STANDARD_PACKAGES, PREMIUM_PACKAGES } from "@/lib/ticket-packages";
 import ButtonSpinner from "@/components/ButtonSpinner";
 import { useToast } from "@/components/ToastProvider";
 import SajuDashboard from "@/components/saju/SajuDashboard";
@@ -98,6 +99,36 @@ const hasTodayFreeSajuInDB = async (userId: string): Promise<boolean> => {
     (row) => row.title === FREE_SAJU_TITLE || row.type === FREE_SAJU_TYPE
   );
 };
+
+type SajuWebhookResult =
+  | { ok: true; data: { result_text: string; standardTicket?: number; premiumTicket?: number } }
+  | { ok: false; status: number; error: string };
+
+// n8n 웹훅을 브라우저에서 직접 호출하지 않고, 로그인 세션 + 무료/티켓 사용량 검증을 거치는 서버 API를 통해서만 호출합니다.
+async function callSajuWebhook(payload: Record<string, unknown>): Promise<SajuWebhookResult> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const accessToken = session?.access_token;
+
+  if (!accessToken) {
+    return { ok: false, status: 401, error: "로그인이 필요합니다." };
+  }
+
+  const res = await fetch("/api/saju/webhook", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(payload),
+  });
+
+  const json = await res.json();
+
+  if (!res.ok) {
+    return { ok: false, status: res.status, error: json.error || "요청 처리 중 오류가 발생했습니다." };
+  }
+
+  return { ok: true, data: json };
+}
 
 export default function TodaySajuLanding() {
   const router = useRouter();
@@ -190,17 +221,6 @@ const [passwordInput, setPasswordInput] = useState("");
   const [depositorName, setDepositorName] = useState("");
   const [showSajuDashboard, setShowSajuDashboard] = useState(false);
   const [dashboardSajuResult, setDashboardSajuResult] = useState<SajuResult | null>(null);
-
-  const STANDARD_PACKAGES = [
-    { id: "std-1", category: "standard", price: 3900, tickets: 1, label: "1회권" },
-    { id: "std-5", category: "standard", price: 17000, tickets: 5, label: "5회권", discount: "12% 할인" },
-    { id: "std-10", category: "standard", price: 29000, tickets: 10, label: "10회권", discount: "25% 할인" },
-  ];
-
-  const PREMIUM_PACKAGES = [
-    { id: "prm-1", category: "premium", price: 19000, tickets: 1, label: "1회권" },
-    { id: "prm-5", category: "premium", price: 85000, tickets: 5, label: "5회권", discount: "10% 할인" },
-  ];
 
   const getTicketUsageLabel = (type: string) =>
     type === "premium" ? "👑 프리미엄 패스 1장" : "🎟️ 스탠다드 패스 1장";
@@ -678,47 +698,40 @@ const fetchMyHistory = async () => {
         return;
       }
 
-      const isPremium = selectedPackage.category === "premium";
-      const currentCount = isPremium ? premiumTicket : standardTicket;
-      const newCount = currentCount + selectedPackage.tickets;
-      const ticketField = isPremium ? "premium_ticket" : "standard_ticket";
-
-      if (user) {
-        const { error } = await supabase
-          .from("user_profiles")
-          .update({ [ticketField]: newCount })
-          .eq("id", user.id);
-
-        if (error) {
-          console.error("티켓 충전 DB 에러:", error);
-          alert("결제는 완료되었으나 티켓 반영 중 오류가 발생했습니다. 고객센터로 문의해주세요.");
-          return;
-        }
+      if (!user) {
+        alert("로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요.");
+        return;
       }
 
-      if (user) {
-        const { error: logError } = await supabase.from("payment_logs").insert({
-          user_id: user.id,
-          user_email: user.email || user.user_metadata?.email || "이메일 없음",
-          order_name: orderName,
-          amount_krw: selectedPackage.price,
-          ticket_type: selectedPackage.category,
-          ticket_count: selectedPackage.tickets,
-          payment_id: response.paymentId || paymentId,
-          pay_method: "CARD",
-          status: "PAID",
-        });
-
-        if (logError) {
-          console.error("결제 내역 로그 저장 실패:", logError);
-        }
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) {
+        alert("로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요.");
+        return;
       }
 
-      if (isPremium) {
-        setPremiumTicket(newCount);
-      } else {
-        setStandardTicket(newCount);
+      const confirmRes = await fetch("/api/payment/confirm", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          paymentId: response.paymentId || paymentId,
+          packageId: selectedPackage.id,
+        }),
+      });
+
+      const confirmJson = await confirmRes.json();
+
+      if (!confirmRes.ok) {
+        console.error("결제 검증 실패:", confirmJson.error);
+        alert(`결제는 완료되었으나 티켓 반영 중 오류가 발생했습니다: ${confirmJson.error}\n고객센터로 문의해주세요.`);
+        return;
       }
+
+      setStandardTicket(confirmJson.standardTicket);
+      setPremiumTicket(confirmJson.premiumTicket);
 
       alert(`✅ 결제가 완료되었습니다!\n[${selectedPackage.label}] ${selectedPackage.tickets}장이 충전되었습니다! 🎉`);
       setShowChargeModal(false);
@@ -774,11 +787,8 @@ const handleUseTicketAndRetry = async () => {
   }
   try {
     setIsTicketProcessing(true);
-    const newTicketCount = standardTicket - 1;
-    const { error } = await supabase.from("user_profiles").update({ standard_ticket: newTicketCount }).eq("id", user.id);
-    if (error) throw error;
-    setStandardTicket(newTicketCount);
     setIsAlreadyUsedModalOpen(false);
+    // 티켓 차감은 서버(/api/saju/webhook)가 분석 성공 후 처리합니다.
     await handleAnalyze({ skipFreeLimitCheck: true, saveAsTicketRetry: true });
   } catch (error) {
     console.error("티켓 사용 에러:", error);
@@ -835,36 +845,25 @@ const handleUseTicketAndRetry = async () => {
     
     const llmFriendlyData = sajuResult.toCompact();
 
-    // 3. 계산된 만세력 데이터를 n8n 서버로 전송
-    const webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL;
-    
-    if (!webhookUrl || webhookUrl.includes("dummy.com")) {
-      console.warn("⚠️ n8n 웹훅 URL이 설정되지 않아 임시 화면으로 넘어갑니다.");
-      setTimeout(() => { setStep("result"); setHasUsedDailyFree(true); }, 2000);
-      return;
-    }
-
-    const response = await fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "analyze_saju",
-        name: userInfo.name,
-        sajuData: llmFriendlyData,
-        maritalStatus: userInfo.maritalStatus,
-        hasChildren: userInfo.hasChildren,
-        ...getPartnerWebhookFields(partnerInfo),
-      }),
+    // 3. 계산된 만세력 데이터를 서버 API로 전송 (서버가 n8n 호출 + 무료/티켓 사용량을 검증)
+    const webhookResult = await callSajuWebhook({
+      action: "analyze_saju",
+      useTicket: options?.skipFreeLimitCheck ? true : undefined,
+      name: userInfo.name,
+      sajuData: llmFriendlyData,
+      maritalStatus: userInfo.maritalStatus,
+      hasChildren: userInfo.hasChildren,
+      partnerFields: getPartnerWebhookFields(partnerInfo),
     });
 
-    if (response.ok) {
-      const data = await response.json(); 
+    if (webhookResult.ok) {
+      const data = webhookResult.data;
       const rawResult = data.result_text;
       // ... (기존 @@@ 자르는 로직 그대로 유지) ...
       if (rawResult.includes("@@@")) {
         const [mainText, questionsPart] = rawResult.split("@@@");
-        setSajuResultText(mainText.trim()); 
-        const dynamicQuestions = questionsPart.split("||").map((q: string) => q.trim()).filter((q: string) => q !== "").map((q: string) => `✨ ${q}`); 
+        setSajuResultText(mainText.trim());
+        const dynamicQuestions = questionsPart.split("||").map((q: string) => q.trim()).filter((q: string) => q !== "").map((q: string) => `✨ ${q}`);
         setSuggestedQuestions(dynamicQuestions);
       } else {
         setSajuResultText(rawResult);
@@ -872,7 +871,11 @@ const handleUseTicketAndRetry = async () => {
 
       setStep("result");
       setHasUsedDailyFree(true);
-      
+
+      if (typeof data.standardTicket === "number") {
+        setStandardTicket(data.standardTicket);
+      }
+
       const { kstDateStr } = getKSTDayBounds();
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
@@ -891,7 +894,7 @@ const handleUseTicketAndRetry = async () => {
         savePartnerInfoToStorage(partnerInfo);
       }
     } else {
-      alert("운세 서버 통신이 지연되고 있습니다. 다시 시도해주세요.");
+      alert(webhookResult.error || "운세 서버 통신이 지연되고 있습니다. 다시 시도해주세요.");
       setStep("input");
     }
   } catch (error) {
@@ -913,22 +916,16 @@ const handleFollowUp = async (question: string) => {
   setFollowUpResult("");
 
   try {
-    const webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL || ""; 
-    
-    const response = await fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "follow_up",
-        name: userInfo.name,
-        sajuData: sajuResultText, 
-        question: question,       
-        maritalStatus: userInfo.maritalStatus,
-      }),
+    const webhookResult = await callSajuWebhook({
+      action: "follow_up",
+      name: userInfo.name,
+      sajuData: sajuResultText,
+      question: question,
+      maritalStatus: userInfo.maritalStatus,
     });
 
-    if (response.ok) {
-      const data = await response.json();
+    if (webhookResult.ok) {
+      const data = webhookResult.data;
       const rawText = data.result_text;
       let cleanText = rawText; // DB 저장용 텍스트
 
@@ -946,12 +943,16 @@ const handleFollowUp = async (question: string) => {
       } else {
         setFollowUpResult(rawText);
       }
-      
+
+      if (typeof data.standardTicket === "number") {
+        setStandardTicket(data.standardTicket);
+      }
+
       // 👇 꼬리질문 내용도 DB에 저장!
       saveSajuHistory("followup", question, cleanText);
-      
+
     } else {
-      setFollowUpResult("서버 통신이 지연되고 있습니다. 다시 시도해주세요.");
+      setFollowUpResult(webhookResult.error || "서버 통신이 지연되고 있습니다. 다시 시도해주세요.");
     }
   } catch (error) {
     console.error("Error:", error);
@@ -1000,38 +1001,36 @@ const handleFollowUp = async (question: string) => {
       });
       const llmFriendlyData = sajuResult.toCompact();
 
-      // 5. n8n으로 전송 (action: menu_click)
-      const webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL || "";
-      const response = await fetch(webhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "menu_click",
-          name: userInfo.name,
-          sajuData: llmFriendlyData,
-          category: title,
-          maritalStatus: userInfo.maritalStatus,
-          hasChildren: userInfo.hasChildren,
-          ...getPartnerWebhookFields(partnerInfo),
-        }),
+      // 5. 서버 API로 전송 (action: menu_click) — 서버가 티켓 차감 + n8n 호출을 함께 처리
+      const webhookResult = await callSajuWebhook({
+        action: "menu_click",
+        name: userInfo.name,
+        sajuData: llmFriendlyData,
+        category: title,
+        maritalStatus: userInfo.maritalStatus,
+        hasChildren: userInfo.hasChildren,
+        partnerFields: getPartnerWebhookFields(partnerInfo),
       });
 
-      if (response.ok) {
-        const data = await response.json();
+      if (webhookResult.ok) {
+        const data = webhookResult.data;
         const rawResult = data.result_text;
       if (rawResult.includes("@@@")) {
         const [mainText, questionsPart] = rawResult.split("@@@");
-        setSajuResultText(mainText.trim()); 
-        const dynamicQuestions = questionsPart.split("||").map(q => q.trim()).filter(q => q !== "").map(q => `✨ ${q}`); 
+        setSajuResultText(mainText.trim());
+        const dynamicQuestions = questionsPart.split("||").map(q => q.trim()).filter(q => q !== "").map(q => `✨ ${q}`);
         setSuggestedQuestions(dynamicQuestions);
       } else {
         setSajuResultText(rawResult);
       }
         setStep("result");
         window.scrollTo({ top: 0, behavior: 'smooth' }); // 화면 맨 위로 부드럽게 스크롤
+        if (typeof data.standardTicket === "number") {
+          setStandardTicket(data.standardTicket);
+        }
         saveSajuHistory("menu", title, data.result_text);
       } else {
-        alert("서버 통신이 지연되고 있습니다. 다시 시도해주세요.");
+        alert(webhookResult.error || "서버 통신이 지연되고 있습니다. 다시 시도해주세요.");
         setStep("result");
       }
     } catch (error) {
@@ -1076,37 +1075,35 @@ const handlePremiumClick = async () => {
     const llmFriendlyData = sajuResult.toCompact();
     const partnerFields = getPartnerWebhookFields(partnerInfo);
 
-    // 4. n8n 프리미엄 노드 호출
-    const webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL || "";
-    const response = await fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "premium_saju",
-        name: userInfo.name,
-        sajuData: llmFriendlyData,
-        maritalStatus: userInfo.maritalStatus,
-        hasChildren: userInfo.hasChildren,
-        ...partnerFields,
-      }),
+    // 4. 서버 API로 프리미엄 노드 호출 — 서버가 프리미엄 티켓 차감 + n8n 호출을 함께 처리
+    const webhookResult = await callSajuWebhook({
+      action: "premium_saju",
+      name: userInfo.name,
+      sajuData: llmFriendlyData,
+      maritalStatus: userInfo.maritalStatus,
+      hasChildren: userInfo.hasChildren,
+      partnerFields,
     });
 
-    if (response.ok) {
-      const data = await response.json();
+    if (webhookResult.ok) {
+      const data = webhookResult.data;
       const rawResult = data.result_text;
         if (rawResult.includes("@@@")) {
           const [mainText, questionsPart] = rawResult.split("@@@");
-          setSajuResultText(mainText.trim()); 
-          const dynamicQuestions = questionsPart.split("||").map(q => q.trim()).filter(q => q !== "").map(q => `✨ ${q}`); 
+          setSajuResultText(mainText.trim());
+          const dynamicQuestions = questionsPart.split("||").map(q => q.trim()).filter(q => q !== "").map(q => `✨ ${q}`);
           setSuggestedQuestions(dynamicQuestions);
         } else {
           setSajuResultText(rawResult);
         }
       setStep("result");
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (typeof data.premiumTicket === "number") {
+        setPremiumTicket(data.premiumTicket);
+      }
       saveSajuHistory("premium", "프리미엄 인생 마스터플랜", data.result_text);
     } else {
-      alert("서버 통신이 지연되고 있습니다. 다시 시도해주세요.");
+      alert(webhookResult.error || "서버 통신이 지연되고 있습니다. 다시 시도해주세요.");
       setStep("result");
     }
   } catch (error) {
@@ -1124,33 +1121,16 @@ const handlePremiumClick = async () => {
 
     setLoadingAction("pending");
     try {
+      // 실제 티켓 차감은 서버(/api/saju/webhook)가 각 분석 요청 처리 성공 후에 수행합니다.
+      // 여기서는 명백히 잔여 티켓이 없는 경우에만 미리 안내해 불필요한 요청을 막습니다.
       const isPremium = pendingPayment.type === "premium";
       const currentTicketCount = isPremium ? premiumTicket : standardTicket;
-      const ticketField = isPremium ? "premium_ticket" : "standard_ticket";
 
       if (currentTicketCount < 1) {
         alert("이용권이 부족합니다. 이용권 구매 후 이용해주세요!");
         setPendingPayment(null);
         setShowChargeModal(true);
         return;
-      }
-
-      const newTicketCount = currentTicketCount - 1;
-      const { error } = await supabase
-        .from("user_profiles")
-        .update({ [ticketField]: newTicketCount })
-        .eq("id", user.id);
-
-      if (error) {
-        console.error("DB 티켓 차감 에러:", error);
-        alert("결제 처리 중 오류가 발생했습니다.");
-        return;
-      }
-
-      if (isPremium) {
-        setPremiumTicket(newTicketCount);
-      } else {
-        setStandardTicket(newTicketCount);
       }
 
       const action = pendingPayment;
