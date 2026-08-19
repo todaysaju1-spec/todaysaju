@@ -8,30 +8,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: auth.message }, { status: auth.status });
   }
 
-  const selectedUserId = request.nextUrl.searchParams.get("userId");
-
   try {
-    const supabase = createSupabaseAdmin();
-
-    let query = supabase
-      .from("saju_history")
+    const admin = createSupabaseAdmin();
+    const { data, error } = await admin
+      .from("payment_logs")
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (selectedUserId) {
-      query = query.eq("user_id", selectedUserId);
-    }
-
-    const { data: historyData, error } = await query;
-
     if (error) {
-      console.error("사주 내역 조회 에러:", error, "selectedUserId:", selectedUserId);
+      console.error("카드 결제 내역 에러:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ data: historyData ?? [] });
+    return NextResponse.json({ data: data ?? [] });
   } catch (err) {
-    console.error("Admin saju-history API 에러:", err);
+    console.error("Admin payment-logs API 에러:", err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "서버 오류" },
       { status: 500 }

@@ -72,6 +72,38 @@ export default function AdminDashboard() {
   const [isUserDetailLoading, setIsUserDetailLoading] = useState(false);
   const [detailTab, setDetailTab] = useState<"charges" | "sajus">("charges");
 
+  const [serverAuthError, setServerAuthError] = useState<string | null>(null);
+
+  // 관리자 API는 서비스 롤 키로 동작하므로, 실제 접근 제어는 서버에서
+  // Supabase Auth 세션 + ADMIN_EMAILS 화이트리스트로 확인합니다.
+  const adminFetch = async (path: string, options: RequestInit = {}) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      setServerAuthError(
+        "관리자 계정으로 사이트에 로그인되어 있지 않습니다. 메인 페이지에서 관리자 이메일로 로그인한 뒤 다시 시도해 주세요."
+      );
+      return null;
+    }
+
+    const res = await fetch(path, {
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+        Authorization: `Bearer ${session.access_token}`,
+        ...(options.body ? { "Content-Type": "application/json" } : {}),
+      },
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      const body = await res.json().catch(() => ({}));
+      setServerAuthError(body.error || "관리자 권한이 없는 계정입니다.");
+      return null;
+    }
+
+    setServerAuthError(null);
+    return res;
+  };
+
   useEffect(() => {
     const stored = safeGetItem(ADMIN_PASSWORD_KEY);
     if (!stored) {
@@ -146,13 +178,12 @@ export default function AdminDashboard() {
 
   const fetchUsers = async () => {
     setLoadingUsers(true);
-    const { data, error } = await supabase
-      .from("user_profiles")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) console.error("유저 불러오기 에러:", error);
-    else setUsers(data || []);
+    const res = await adminFetch("/api/admin/users");
+    if (res) {
+      const json = await res.json();
+      if (!res.ok) console.error("유저 불러오기 에러:", json.error);
+      else setUsers(json.data || []);
+    }
     setLoadingUsers(false);
   };
 
@@ -172,16 +203,16 @@ export default function AdminDashboard() {
       return;
     }
 
-    const { error } = await supabase
-      .from("user_profiles")
-      .update({ 
-        standard_ticket: parsedStd, 
-        premium_ticket: parsedPrm 
-      })
-      .eq("id", userId);
+    const res = await adminFetch("/api/admin/users", {
+      method: "PATCH",
+      body: JSON.stringify({ userId, standardTicket: parsedStd, premiumTicket: parsedPrm }),
+    });
 
-    if (error) {
-      alert("❌ 티켓 수정 실패: " + error.message);
+    if (!res) return;
+
+    const json = await res.json();
+    if (!res.ok) {
+      alert("❌ 티켓 수정 실패: " + json.error);
     } else {
       alert("✅ 회원의 티켓 잔여량이 성공적으로 수정되었습니다.");
       fetchUsers();
@@ -190,48 +221,47 @@ export default function AdminDashboard() {
 
   const fetchRequests = async () => {
     setLoadingRequests(true);
-    const { data, error } = await supabase
-      .from("deposit_requests")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) console.error("입금 내역 에러:", error);
-    else setRequests(data || []);
+    const res = await adminFetch("/api/admin/deposit-requests");
+    if (res) {
+      const json = await res.json();
+      if (!res.ok) console.error("입금 내역 에러:", json.error);
+      else setRequests(json.data || []);
+    }
     setLoadingRequests(false);
   };
 
   const fetchCardPayments = async () => {
     setLoadingCardPayments(true);
-    const { data, error } = await supabase
-      .from("payment_logs")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) console.error("카드 결제 내역 에러:", error);
-    else setCardPayments(data || []);
+    const res = await adminFetch("/api/admin/payment-logs");
+    if (res) {
+      const json = await res.json();
+      if (!res.ok) console.error("카드 결제 내역 에러:", json.error);
+      else setCardPayments(json.data || []);
+    }
     setLoadingCardPayments(false);
   };
 
   const fetchStatistics = async () => {
     setIsLoadingStats(true);
     try {
-      const { data: usersData } = await supabase
-        .from("user_profiles")
-        .select("id, created_at, standard_ticket, premium_ticket");
+      const [usersRes, paymentsRes, historyRes] = await Promise.all([
+        adminFetch("/api/admin/users"),
+        adminFetch("/api/admin/payment-logs"),
+        adminFetch("/api/admin/saju-history"),
+      ]);
 
-      const { data: paidPayments } = await supabase
-        .from("payment_logs")
-        .select("*")
-        .eq("status", "PAID")
-        .order("created_at", { ascending: false });
+      if (!usersRes || !paymentsRes || !historyRes) {
+        setIsLoadingStats(false);
+        return;
+      }
 
-      const { data: historyData } = await supabase
-        .from("saju_history")
-        .select("id, title, created_at");
+      const usersJson = await usersRes.json();
+      const paymentsJson = await paymentsRes.json();
+      const historyJson = await historyRes.json();
 
-      const payments = paidPayments || [];
-      const users = usersData || [];
-      const history = historyData || [];
+      const payments = (paymentsJson.data || []).filter((p: any) => p.status === "PAID");
+      const users = usersJson.data || [];
+      const history = historyJson.data || [];
 
       const totalRevenue = payments.reduce((sum: number, p: any) => sum + (p.amount_krw || 0), 0);
       const paymentCount = payments.length;
@@ -307,45 +337,19 @@ export default function AdminDashboard() {
     setExpandedSajuIds([]);
     setIsUserDetailLoading(true);
 
-    const chargesResult = await supabase
-      .from("deposit_requests")
-      .select("*")
-      .eq("user_id", selectedUserId)
-      .order("created_at", { ascending: false });
-
-    if (chargesResult.error) {
-      console.error("충전 내역 조회 에러:", chargesResult.error, "selectedUserId:", selectedUserId);
-    } else {
-      setUserCharges(chargesResult.data || []);
+    const chargesRes = await adminFetch(`/api/admin/deposit-requests?userId=${encodeURIComponent(selectedUserId)}`);
+    if (chargesRes) {
+      const chargesJson = await chargesRes.json();
+      if (!chargesRes.ok) console.error("충전 내역 조회 에러:", chargesJson.error);
+      else setUserCharges(chargesJson.data || []);
     }
 
     let historyData: any[] = [];
-
-    try {
-      const response = await fetch(
-        `/api/admin/saju-history?userId=${encodeURIComponent(selectedUserId)}`
-      );
-
-      if (response.ok) {
-        const json = await response.json();
-        historyData = json.data || [];
-      } else {
-        throw new Error(`API ${response.status}`);
-      }
-    } catch (apiError) {
-      console.warn("Admin API 조회 실패, 클라이언트 직접 쿼리 시도:", apiError);
-
-      const { data: historyDataDirect, error: historyError } = await supabase
-        .from("saju_history")
-        .select("*")
-        .eq("user_id", selectedUserId)
-        .order("created_at", { ascending: false });
-
-      if (historyError) {
-        console.error("사주 내역 조회 에러:", historyError, "selectedUserId:", selectedUserId);
-      } else {
-        historyData = historyDataDirect || [];
-      }
+    const historyRes = await adminFetch(`/api/admin/saju-history?userId=${encodeURIComponent(selectedUserId)}`);
+    if (historyRes) {
+      const historyJson = await historyRes.json();
+      if (!historyRes.ok) console.error("사주 내역 조회 에러:", historyJson.error);
+      else historyData = historyJson.data || [];
     }
 
     setUserSajus(historyData);
@@ -368,40 +372,22 @@ export default function AdminDashboard() {
     );
     if (!isConfirmed) return;
 
-    try {
-      const { data: userData, error: userError } = await supabase
-        .from("user_profiles")
-        .select("standard_ticket, premium_ticket")
-        .eq("id", request.user_id)
-        .single();
+    const res = await adminFetch("/api/admin/deposit-requests", {
+      method: "POST",
+      body: JSON.stringify({ requestId: request.id }),
+    });
 
-      if (userError) throw userError;
+    if (!res) return;
 
-      const updatePayload =
-        request.ticket_type === "premium"
-          ? { premium_ticket: (userData.premium_ticket || 0) + (request.ticket_count || 1) }
-          : { standard_ticket: (userData.standard_ticket || 0) + (request.ticket_count || 1) };
-
-      const { error: updateError } = await supabase
-        .from("user_profiles")
-        .update(updatePayload)
-        .eq("id", request.user_id);
-
-      if (updateError) throw updateError;
-
-      const { error: reqError } = await supabase
-        .from("deposit_requests")
-        .update({ status: "completed" })
-        .eq("id", request.id);
-
-      if (reqError) throw reqError;
-
-      alert("🎉 티켓 지급이 완료되었습니다!");
-      fetchRequests();
-    } catch (error) {
-      console.error("지급 중 오류 발생:", error);
-      alert("지급 처리 중 오류가 발생했습니다.");
+    const json = await res.json();
+    if (!res.ok) {
+      console.error("지급 중 오류 발생:", json.error);
+      alert("지급 처리 중 오류가 발생했습니다: " + json.error);
+      return;
     }
+
+    alert("🎉 티켓 지급이 완료되었습니다!");
+    fetchRequests();
   };
 
   if (!isInitialized) {
@@ -456,6 +442,12 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-[#0a0514] text-white p-5 md:p-10 font-sans selection:bg-[#D4AF37]/30">
       <div className="max-w-6xl mx-auto space-y-8">
+
+        {serverAuthError && (
+          <div className="bg-red-900/30 border border-red-800/60 text-red-300 text-sm rounded-xl p-4">
+            ⚠️ {serverAuthError}
+          </div>
+        )}
 
         <div className="border-b border-[#3b1d6b] pb-6">
           <div className="flex justify-between items-start mb-6">
