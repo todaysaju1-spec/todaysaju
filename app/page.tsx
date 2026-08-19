@@ -354,7 +354,6 @@ const [passwordInput, setPasswordInput] = useState("");
     if (!profile) {
       const { error } = await supabase.from("user_profiles").upsert({
         id: authUser.id,
-        tenant_id: "client_a",
         email: authEmail,
       });
       if (error) console.error("이메일 동기화 upsert 에러:", error);
@@ -519,7 +518,6 @@ const saveMyProfile = async (userId: string) => {
 
   const { error } = await supabase.from('user_profiles').upsert({
     id: userId,
-    tenant_id: "client_a",
     display_name: userInfo.name,
     birth_date: userInfo.birth,
     birth_hour: userInfo.hour,
