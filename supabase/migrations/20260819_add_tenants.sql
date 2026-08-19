@@ -31,10 +31,11 @@ BEGIN
   UPDATE public.payment_logs SET tenant_id = default_tenant_id WHERE tenant_id IS NULL;
   UPDATE public.deposit_requests SET tenant_id = default_tenant_id WHERE tenant_id IS NULL;
 
-  ALTER TABLE public.user_profiles ALTER COLUMN tenant_id SET DEFAULT default_tenant_id;
-  ALTER TABLE public.saju_history ALTER COLUMN tenant_id SET DEFAULT default_tenant_id;
-  ALTER TABLE public.payment_logs ALTER COLUMN tenant_id SET DEFAULT default_tenant_id;
-  ALTER TABLE public.deposit_requests ALTER COLUMN tenant_id SET DEFAULT default_tenant_id;
+  -- PL/pgSQL 변수는 ALTER ... SET DEFAULT 같은 DDL 상수 표현식에 직접 못 넣으므로 동적 SQL로 실행
+  EXECUTE format('ALTER TABLE public.user_profiles ALTER COLUMN tenant_id SET DEFAULT %L::uuid', default_tenant_id);
+  EXECUTE format('ALTER TABLE public.saju_history ALTER COLUMN tenant_id SET DEFAULT %L::uuid', default_tenant_id);
+  EXECUTE format('ALTER TABLE public.payment_logs ALTER COLUMN tenant_id SET DEFAULT %L::uuid', default_tenant_id);
+  EXECUTE format('ALTER TABLE public.deposit_requests ALTER COLUMN tenant_id SET DEFAULT %L::uuid', default_tenant_id);
 
   ALTER TABLE public.user_profiles ALTER COLUMN tenant_id SET NOT NULL;
   ALTER TABLE public.saju_history ALTER COLUMN tenant_id SET NOT NULL;
@@ -44,6 +45,7 @@ END $$;
 
 -- tenants 테이블: 도메인 -> 테넌트 매핑은 proxy.ts가 매 요청마다 읽어야 하므로 공개 조회만 허용
 ALTER TABLE public.tenants ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "tenants_public_select" ON public.tenants;
 CREATE POLICY "tenants_public_select"
 ON public.tenants FOR SELECT
 USING (true);
