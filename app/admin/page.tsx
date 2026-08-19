@@ -2,11 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { safeGetItem, safeSetItem } from "@/lib/safe-storage";
-import { CheckCircle2, Wallet, Users, CreditCard, Lock, X, TrendingUp, ChevronLeft, ChevronRight, DollarSign, Receipt, Percent, Sparkles, Ticket } from "lucide-react";
-
-const ADMIN_PASSWORD_KEY = "admin_password";
-const DEFAULT_PASSWORD = "flux1234!";
+import { CheckCircle2, Wallet, Users, CreditCard, Lock, LogOut, X, TrendingUp, ChevronLeft, ChevronRight, DollarSign, Receipt, Percent, Sparkles, Ticket } from "lucide-react";
 
 const formatTicketLabel = (ticketType: string, ticketCount: number) => {
   const typeLabel = ticketType === "premium" ? "👑 프리미엄 패스" : "🎟️ 스탠다드 패스";
@@ -35,16 +31,12 @@ const buildCalendarDays = (year: number, month: number) => {
 const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
 export default function AdminDashboard() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authStatus, setAuthStatus] = useState<"checking" | "unauthenticated" | "authorized">("checking");
+  const [emailInput, setEmailInput] = useState("");
   const [passwordInput, setPasswordInput] = useState("");
   const [authError, setAuthError] = useState("");
-  const [isInitialized, setIsInitialized] = useState(false);
-
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [passwordChangeError, setPasswordChangeError] = useState("");
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const isAuthenticated = authStatus === "authorized";
 
   const [activeTab, setActiveTab] = useState<"deposits" | "cardPayments" | "users" | "statistics">("deposits");
   
@@ -97,6 +89,8 @@ export default function AdminDashboard() {
     if (res.status === 401 || res.status === 403) {
       const body = await res.json().catch(() => ({}));
       setServerAuthError(body.error || "관리자 권한이 없는 계정입니다.");
+      await supabase.auth.signOut();
+      setAuthStatus("unauthenticated");
       return null;
     }
 
@@ -104,12 +98,35 @@ export default function AdminDashboard() {
     return res;
   };
 
-  useEffect(() => {
-    const stored = safeGetItem(ADMIN_PASSWORD_KEY);
-    if (!stored) {
-      safeSetItem(ADMIN_PASSWORD_KEY, DEFAULT_PASSWORD);
+  // 세션이 있으면 서버에 실제 관리자인지 확인한다 (ADMIN_EMAILS 화이트리스트 검사는 서버에서만).
+  const verifyAdminSession = async (accessToken: string) => {
+    const res = await fetch("/api/admin/users", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      await supabase.auth.signOut();
+      setAuthStatus("unauthenticated");
+      setAuthError(body.error || "관리자 권한이 없는 계정입니다.");
+      return;
     }
-    setIsInitialized(true);
+
+    const json = await res.json();
+    setUsers(json.data || []);
+    setAuthStatus("authorized");
+  };
+
+  useEffect(() => {
+    const init = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setAuthStatus("unauthenticated");
+        return;
+      }
+      await verifyAdminSession(session.access_token);
+    };
+    init();
   }, []);
 
   useEffect(() => {
@@ -120,60 +137,40 @@ export default function AdminDashboard() {
     if (activeTab === "statistics") fetchStatistics();
   }, [activeTab, isAuthenticated]);
 
-  const getStoredPassword = () => {
-    return safeGetItem(ADMIN_PASSWORD_KEY, DEFAULT_PASSWORD);
-  };
-
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError("");
 
-    if (passwordInput === getStoredPassword()) {
-      setIsAuthenticated(true);
+    if (!emailInput.trim() || !passwordInput) {
+      setAuthError("이메일과 비밀번호를 입력해 주세요.");
+      return;
+    }
+
+    setIsLoggingIn(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: emailInput.trim(),
+        password: passwordInput,
+      });
+
+      if (error || !data.session) {
+        setAuthError("이메일 또는 비밀번호가 일치하지 않습니다.");
+        return;
+      }
+
       setPasswordInput("");
-    } else {
-      setAuthError("비밀번호가 올바르지 않습니다.");
+      await verifyAdminSession(data.session.access_token);
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
-  const handleOpenPasswordModal = () => {
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
-    setPasswordChangeError("");
-    setShowPasswordModal(true);
-  };
-
-  const handleClosePasswordModal = () => {
-    setShowPasswordModal(false);
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
-    setPasswordChangeError("");
-  };
-
-  const handleChangePassword = (e: React.FormEvent) => {
-    e.preventDefault();
-    setPasswordChangeError("");
-
-    if (currentPassword !== getStoredPassword()) {
-      setPasswordChangeError("현재 비밀번호가 올바르지 않습니다.");
-      return;
-    }
-
-    if (newPassword.length < 4) {
-      setPasswordChangeError("새 비밀번호는 4자 이상이어야 합니다.");
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      setPasswordChangeError("새 비밀번호와 확인 비밀번호가 일치하지 않습니다.");
-      return;
-    }
-
-    safeSetItem(ADMIN_PASSWORD_KEY, newPassword);
-    alert("✅ 비밀번호가 성공적으로 변경되었습니다.");
-    handleClosePasswordModal();
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setEmailInput("");
+    setPasswordInput("");
+    setUsers([]);
+    setAuthStatus("unauthenticated");
   };
 
   const fetchUsers = async () => {
@@ -390,7 +387,7 @@ export default function AdminDashboard() {
     fetchRequests();
   };
 
-  if (!isInitialized) {
+  if (authStatus === "checking") {
     return (
       <div className="min-h-screen bg-[#0a0514] text-white flex items-center justify-center">
         <div className="text-gray-400 animate-pulse">로딩 중...</div>
@@ -398,7 +395,7 @@ export default function AdminDashboard() {
     );
   }
 
-  if (!isAuthenticated) {
+  if (authStatus === "unauthenticated") {
     return (
       <div className="min-h-screen bg-[#0a0514] text-white flex items-center justify-center p-5 font-sans">
         <div className="w-full max-w-md bg-[#15072a]/90 backdrop-blur-xl rounded-2xl border border-[#3b1d6b] shadow-2xl p-8">
@@ -409,10 +406,21 @@ export default function AdminDashboard() {
             <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB]">
               관리자 인증
             </h1>
-            <p className="text-sm text-gray-400 mt-2">관리자 비밀번호를 입력해 주세요</p>
+            <p className="text-sm text-gray-400 mt-2">관리자 계정으로 로그인해 주세요</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
+            <input
+              type="email"
+              value={emailInput}
+              onChange={(e) => {
+                setEmailInput(e.target.value);
+                setAuthError("");
+              }}
+              placeholder="관리자 이메일"
+              className="w-full bg-[#1c0d33] border border-[#3b1d6b] rounded-xl px-4 py-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-[#D4AF37] transition-colors"
+              autoFocus
+            />
             <input
               type="password"
               value={passwordInput}
@@ -420,18 +428,18 @@ export default function AdminDashboard() {
                 setPasswordInput(e.target.value);
                 setAuthError("");
               }}
-              placeholder="비밀번호 입력"
+              placeholder="비밀번호"
               className="w-full bg-[#1c0d33] border border-[#3b1d6b] rounded-xl px-4 py-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-[#D4AF37] transition-colors"
-              autoFocus
             />
             {authError && (
               <p className="text-red-400 text-sm text-center">{authError}</p>
             )}
             <button
               type="submit"
-              className="w-full bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] font-bold py-3 rounded-xl hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all"
+              disabled={isLoggingIn}
+              className="w-full bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] font-bold py-3 rounded-xl hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all disabled:opacity-60"
             >
-              로그인
+              {isLoggingIn ? "로그인 중..." : "로그인"}
             </button>
           </form>
         </div>
@@ -455,11 +463,11 @@ export default function AdminDashboard() {
               👑 오늘의사주 최고관리자
             </h1>
             <button
-              onClick={handleOpenPasswordModal}
+              onClick={handleLogout}
               className="flex items-center gap-2 text-sm bg-[#1c0d33] border border-[#3b1d6b] text-[#a48cd1] hover:text-[#D4AF37] hover:border-[#D4AF37]/50 px-4 py-2 rounded-lg transition-all"
             >
-              <Lock size={14} />
-              비밀번호 변경
+              <LogOut size={14} />
+              로그아웃
             </button>
           </div>
 
@@ -1118,82 +1126,6 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* 비밀번호 변경 모달 */}
-      {showPasswordModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-5">
-          <div
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-            onClick={handleClosePasswordModal}
-          />
-          <div className="relative w-full max-w-md bg-[#15072a] border border-[#3b1d6b] rounded-2xl shadow-2xl p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-[#D4AF37] flex items-center gap-2">
-                <Lock size={18} />
-                비밀번호 변경
-              </h2>
-              <button
-                onClick={handleClosePasswordModal}
-                className="text-gray-400 hover:text-white transition-colors"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={handleChangePassword} className="space-y-4">
-              <div>
-                <label className="block text-sm text-[#a48cd1] mb-1.5">현재 비밀번호</label>
-                <input
-                  type="password"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  className="w-full bg-[#1c0d33] border border-[#3b1d6b] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#D4AF37] transition-colors"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-[#a48cd1] mb-1.5">새 비밀번호</label>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full bg-[#1c0d33] border border-[#3b1d6b] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#D4AF37] transition-colors"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-[#a48cd1] mb-1.5">새 비밀번호 확인</label>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full bg-[#1c0d33] border border-[#3b1d6b] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#D4AF37] transition-colors"
-                  required
-                />
-              </div>
-
-              {passwordChangeError && (
-                <p className="text-red-400 text-sm text-center">{passwordChangeError}</p>
-              )}
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={handleClosePasswordModal}
-                  className="flex-1 py-3 rounded-xl border border-[#3b1d6b] text-gray-400 hover:text-white hover:border-gray-500 transition-all"
-                >
-                  취소
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] font-bold hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all"
-                >
-                  변경하기
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
