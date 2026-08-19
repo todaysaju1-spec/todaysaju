@@ -63,7 +63,7 @@ export default function Footer() {
               <input type="hidden" name="mhValue" value="b2e889e3f8e498308e7951661314e011" />
             </form>
             <a href="#" onClick={openKBEscrow} className="block">
-              <img src="http://img1.kbstar.com/img/escrow/escrowcmark.gif" alt="KB국민은행 에스크로" border="0" className="block cursor-pointer" />
+              <img src="http://img1.kbstar.com/img/escrow/escrowcmark.gif" alt="KB국민은행 에스크로" className="block cursor-pointer border-0" />
             </a>
           </div>
 

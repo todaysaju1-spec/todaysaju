@@ -95,10 +95,13 @@ export default function OhangDonutChart({ sajuResult, onMenuSelect }: OhangDonut
                       borderRadius: "12px",
                       fontSize: "13px",
                     }}
-                    formatter={(value: number, _name, props) => [
-                      `${value}자 (${Math.round((value / totalOhang) * 100)}%)`,
-                      props.payload.name,
-                    ]}
+                    formatter={(value, _name, props) => {
+                      const numValue = typeof value === "number" ? value : Number(value);
+                      return [
+                        `${numValue}자 (${Math.round((numValue / totalOhang) * 100)}%)`,
+                        props.payload?.name,
+                      ];
+                    }}
                   />
                   <Legend
                     wrapperStyle={{ fontSize: "12px", color: "#a48cd1" }}

@@ -683,6 +683,11 @@ const fetchMyHistory = async () => {
         redirectUrl,
       });
 
+      if (!response) {
+        alert("결제 응답을 받지 못했습니다. 다시 시도해 주세요.");
+        return;
+      }
+
       if (response.code !== undefined) {
         const message = response.message || "";
         const isCancelled =
