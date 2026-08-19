@@ -24,3 +24,46 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ── 테넌트 테마 토큰 ──
+   data-theme="dark"(기본, 오늘의사주 보라/골드)와 data-theme="light"(기문당 스타일 라이트/미니멀)
+   두 세트를 정의. <html data-theme="..."> 값은 app/layout.tsx가 tenant_themes.mode로 설정한다.
+   app/page.tsx 등에서는 bg-[var(--bg-base)]처럼 값 대신 변수로 참조한다. */
+:root,
+[data-theme="dark"] {
+  --bg-base: #0a0514;
+  --bg-surface: #15072a;
+  --bg-elevated: #1c0d33;
+  --bg-muted: #1a0b2e;
+  --bg-elevated-alt: #2a144a;
+  --bg-hover: #1e0c3a;
+  --border-default: #3b1d6b;
+  --border-strong: #44237d;
+  --text-body: #e0d6f5;
+  --text-muted: #a48cd1;
+  --brand-primary: #D4AF37;
+  --brand-primary-soft: #F3E5AB;
+  --brand-primary-hover: #F0D060;
+  --text-on-brand: #120524;
+}
+
+[data-theme="light"] {
+  --bg-base: #F7F8FA;
+  --bg-surface: #FFFFFF;
+  --bg-elevated: #F1F3F6;
+  --bg-muted: #EDEFF3;
+  --bg-elevated-alt: #E8EAF0;
+  --bg-hover: #E4E7ED;
+  --border-default: #E2E5EA;
+  --border-strong: #CBD0DA;
+  --text-body: #1F2430;
+  --text-muted: #6B7280;
+  --brand-primary: #2B3A67;
+  --brand-primary-soft: #7C89B3;
+  --brand-primary-hover: #1D2850;
+  --text-on-brand: #FFFFFF;
+}
+
+[data-theme="light"] .cosmic-bg {
+  background: #F7F8FA;
+}

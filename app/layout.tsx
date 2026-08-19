@@ -61,12 +61,12 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
+      data-theme={theme.mode}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       style={
         {
           "--brand-primary": theme.primaryColor,
-          "--brand-accent": theme.accentColor,
-          "--brand-bg": theme.backgroundColor,
+          "--brand-primary-soft": theme.accentColor,
         } as React.CSSProperties
       }
     >

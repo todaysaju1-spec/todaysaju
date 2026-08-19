@@ -101,7 +101,7 @@ export default function InstallPrompt() {
           <button
             type="button"
             onClick={handleInstall}
-            className="shrink-0 rounded-xl bg-gradient-to-r from-[#D4AF37] to-[#F0D060] px-3.5 py-2 text-xs font-extrabold text-[#120524] hover:brightness-110 transition-all shadow-md"
+            className="shrink-0 rounded-xl bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-hover)] px-3.5 py-2 text-xs font-extrabold text-[var(--text-on-brand)] hover:brightness-110 transition-all shadow-md"
           >
             홈에 추가
           </button>
@@ -126,7 +126,7 @@ export default function InstallPrompt() {
 
           <div className="relative mx-4 mb-6 animate-in slide-in-from-bottom-4 duration-300">
             <div className="mx-auto mb-3 flex justify-center">
-              <div className="w-0 h-0 border-l-[10px] border-r-[10px] border-t-[12px] border-l-transparent border-r-transparent border-t-[#D4AF37]" />
+              <div className="w-0 h-0 border-l-[10px] border-r-[10px] border-t-[12px] border-l-transparent border-r-transparent border-t-[var(--brand-primary)]" />
             </div>
 
             <div className="rounded-2xl border border-yellow-500/50 bg-purple-950/95 backdrop-blur-md p-5 shadow-2xl">
@@ -139,22 +139,22 @@ export default function InstallPrompt() {
                 <X size={18} />
               </button>
 
-              <h3 className="text-base font-bold text-[#D4AF37] mb-3 pr-6">
+              <h3 className="text-base font-bold text-[var(--brand-primary)] mb-3 pr-6">
                 iPhone 홈 화면 추가 방법
               </h3>
 
               <div className="space-y-3 text-sm text-gray-200 leading-relaxed">
                 <p className="flex items-start gap-2">
-                  <span className="shrink-0 flex items-center justify-center w-7 h-7 rounded-lg bg-[#D4AF37]/15 border border-[#D4AF37]/30">
-                    <Share size={14} className="text-[#D4AF37]" />
+                  <span className="shrink-0 flex items-center justify-center w-7 h-7 rounded-lg bg-[var(--brand-primary)]/15 border border-[var(--brand-primary)]/30">
+                    <Share size={14} className="text-[var(--brand-primary)]" />
                   </span>
                   <span>
                     하단 <strong className="text-white">공유 버튼(📤)</strong>을 눌러 주세요
                   </span>
                 </p>
                 <p className="flex items-start gap-2">
-                  <span className="shrink-0 flex items-center justify-center w-7 h-7 rounded-lg bg-[#D4AF37]/15 border border-[#D4AF37]/30">
-                    <Plus size={14} className="text-[#D4AF37]" />
+                  <span className="shrink-0 flex items-center justify-center w-7 h-7 rounded-lg bg-[var(--brand-primary)]/15 border border-[var(--brand-primary)]/30">
+                    <Plus size={14} className="text-[var(--brand-primary)]" />
                   </span>
                   <span>
                     메뉴에서 <strong className="text-white">[홈 화면에 추가 ➕]</strong>를 선택해 주세요!

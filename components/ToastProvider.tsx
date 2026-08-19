@@ -24,8 +24,8 @@ type ToastContextValue = {
 const ToastContext = createContext<ToastContextValue | null>(null);
 
 const VARIANT_STYLES: Record<ToastVariant, string> = {
-  success: "border-[#D4AF37] text-[#F3E5AB]",
-  info: "border-[#D4AF37]/70 text-gray-200",
+  success: "border-[var(--brand-primary)] text-[var(--brand-primary-soft)]",
+  info: "border-[var(--brand-primary)]/70 text-gray-200",
   error: "border-red-400/60 text-red-200",
   warning: "border-amber-400/60 text-amber-100",
 };
@@ -48,7 +48,7 @@ function ToastItem({
     <div
       role="status"
       aria-live="polite"
-      className={`pointer-events-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-300 bg-[#120524]/95 backdrop-blur-md border-2 ${VARIANT_STYLES[toast.variant]} rounded-2xl px-4 py-3 shadow-[0_0_24px_rgba(212,175,55,0.18)] text-sm font-medium text-center leading-relaxed whitespace-pre-wrap`}
+      className={`pointer-events-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-300 bg-[var(--bg-elevated)]/95 backdrop-blur-md border-2 ${VARIANT_STYLES[toast.variant]} rounded-2xl px-4 py-3 shadow-[0_0_24px_rgba(212,175,55,0.18)] text-sm font-medium text-center leading-relaxed whitespace-pre-wrap`}
     >
       {toast.message}
     </div>

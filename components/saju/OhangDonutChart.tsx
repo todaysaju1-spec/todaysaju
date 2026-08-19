@@ -59,17 +59,17 @@ export default function OhangDonutChart({ sajuResult, onMenuSelect }: OhangDonut
   const insight = buildOhangTenGodInsight(sajuResult);
 
   return (
-    <div className="rounded-2xl border border-[#3b1d6b]/80 bg-[#0a0514]/80 p-4 md:p-5">
-      <h4 className="text-sm md:text-base lg:text-lg font-bold text-[#D4AF37] mb-4 flex items-center gap-2">
-        <span className="w-2 h-2 rounded-full bg-[#D4AF37]" />
+    <div className="rounded-2xl border border-[var(--border-default)]/80 bg-[var(--bg-base)]/80 p-4 md:p-5">
+      <h4 className="text-sm md:text-base lg:text-lg font-bold text-[var(--brand-primary)] mb-4 flex items-center gap-2">
+        <span className="w-2 h-2 rounded-full bg-[var(--brand-primary)]" />
         오행(五行) · 십성(十星) 분석
       </h4>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <p className="text-xs md:text-sm text-[#a48cd1] mb-2 font-medium">오행 분포</p>
+          <p className="text-xs md:text-sm text-[var(--text-muted)] mb-2 font-medium">오행 분포</p>
           {totalOhang === 0 ? (
-            <p className="text-xs md:text-sm text-gray-500 text-center py-8">오행 데이터 없음</p>
+            <p className="text-xs md:text-sm text-[var(--text-muted)] text-center py-8">오행 데이터 없음</p>
           ) : (
             <div className={`w-full ${CHART_HEIGHT_CLASS}`}>
               <ResponsiveContainer width="100%" height="100%">
@@ -85,13 +85,13 @@ export default function OhangDonutChart({ sajuResult, onMenuSelect }: OhangDonut
                     nameKey="name"
                   >
                     {ohangData.map((entry) => (
-                      <Cell key={entry.key} fill={entry.fill} stroke="#120524" strokeWidth={2} />
+                      <Cell key={entry.key} fill={entry.fill} stroke="var(--bg-elevated)" strokeWidth={2} />
                     ))}
                   </Pie>
                   <Tooltip
                     contentStyle={{
-                      background: "#120524",
-                      border: "1px solid #D4AF37",
+                      background: "var(--bg-elevated)",
+                      border: "1px solid var(--brand-primary)",
                       borderRadius: "12px",
                       fontSize: "13px",
                     }}
@@ -104,8 +104,8 @@ export default function OhangDonutChart({ sajuResult, onMenuSelect }: OhangDonut
                     }}
                   />
                   <Legend
-                    wrapperStyle={{ fontSize: "12px", color: "#a48cd1" }}
-                    formatter={(value) => <span className="text-gray-300 text-xs md:text-sm">{value}</span>}
+                    wrapperStyle={{ fontSize: "12px", color: "var(--text-muted)" }}
+                    formatter={(value) => <span className="text-[var(--text-muted)] text-xs md:text-sm">{value}</span>}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -124,35 +124,35 @@ export default function OhangDonutChart({ sajuResult, onMenuSelect }: OhangDonut
         </div>
 
         <div>
-          <p className="text-xs md:text-sm text-[#a48cd1] mb-2 font-medium">십성 분포</p>
+          <p className="text-xs md:text-sm text-[var(--text-muted)] mb-2 font-medium">십성 분포</p>
           {tenGodData.length === 0 ? (
-            <p className="text-xs md:text-sm text-gray-500 text-center py-8">십성 데이터 없음</p>
+            <p className="text-xs md:text-sm text-[var(--text-muted)] text-center py-8">십성 데이터 없음</p>
           ) : (
             <div className={`w-full ${CHART_HEIGHT_CLASS}`}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={tenGodData} layout="vertical" margin={{ left: 4, right: 12, top: 4, bottom: 4 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#3b1d6b" horizontal={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" horizontal={false} />
                   <XAxis
                     type="number"
                     allowDecimals={false}
-                    tick={{ fill: "#a48cd1", fontSize: 12 }}
+                    tick={{ fill: "var(--text-muted)", fontSize: 12 }}
                   />
                   <YAxis
                     type="category"
                     dataKey="name"
                     width={64}
-                    tick={{ fill: "#e0d6f5", fontSize: 12 }}
+                    tick={{ fill: "var(--text-body)", fontSize: 12 }}
                   />
                   <Tooltip
                     contentStyle={{
-                      background: "#120524",
-                      border: "1px solid #D4AF37",
+                      background: "var(--bg-elevated)",
+                      border: "1px solid var(--brand-primary)",
                       borderRadius: "12px",
                       fontSize: "13px",
                     }}
                     cursor={{ fill: "rgba(212,175,55,0.08)" }}
                   />
-                  <Bar dataKey="count" fill="#D4AF37" radius={[0, 6, 6, 0]} maxBarSize={20} />
+                  <Bar dataKey="count" fill="var(--brand-primary)" radius={[0, 6, 6, 0]} maxBarSize={20} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

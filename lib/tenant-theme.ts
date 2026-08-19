@@ -1,9 +1,12 @@
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
+
+export type TenantThemeMode = "dark" | "light";
 
 export type TenantTheme = {
   siteName: string;
   tagline: string | null;
   metaDescription: string | null;
+  mode: TenantThemeMode;
   primaryColor: string;
   accentColor: string;
   backgroundColor: string;
@@ -20,6 +23,7 @@ const FALLBACK_THEME: TenantTheme = {
   tagline: "소름 돋게 정확한 명리학 & 타로",
   metaDescription:
     "30년 경력 명리학자가 인정한 바로 보는 프리미엄 사주! 나의 오늘 운세, 재물운, 연애운부터 정통 명리학 풀이까지 지금 바로 확인하세요.",
+  mode: "dark",
   primaryColor: "#D4AF37",
   accentColor: "#F3E5AB",
   backgroundColor: "#0a0514",
@@ -32,6 +36,7 @@ function mapRow(row: any): TenantTheme {
     siteName: row.site_name ?? FALLBACK_THEME.siteName,
     tagline: row.tagline ?? null,
     metaDescription: row.meta_description ?? null,
+    mode: row.mode === "light" ? "light" : "dark",
     primaryColor: row.primary_color ?? FALLBACK_THEME.primaryColor,
     accentColor: row.accent_color ?? FALLBACK_THEME.accentColor,
     backgroundColor: row.background_color ?? FALLBACK_THEME.backgroundColor,
@@ -45,27 +50,44 @@ function mapRow(row: any): TenantTheme {
 export async function getCurrentTenantTheme(): Promise<TenantTheme> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !anonKey) return FALLBACK_THEME;
 
-  try {
-    const headersList = await headers();
-    const slug = headersList.get("x-tenant-slug") || DEFAULT_TENANT_SLUG;
+  let theme = FALLBACK_THEME;
 
-    const res = await fetch(
-      `${supabaseUrl}/rest/v1/tenant_themes?select=*,tenants!inner(slug)&tenants.slug=eq.${encodeURIComponent(slug)}&limit=1`,
-      {
-        headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
-        next: { revalidate: 60 },
+  if (supabaseUrl && anonKey) {
+    try {
+      const headersList = await headers();
+      const slug = headersList.get("x-tenant-slug") || DEFAULT_TENANT_SLUG;
+
+      const res = await fetch(
+        `${supabaseUrl}/rest/v1/tenant_themes?select=*,tenants!inner(slug)&tenants.slug=eq.${encodeURIComponent(slug)}&limit=1`,
+        {
+          headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+          next: { revalidate: 60 },
+        }
+      );
+
+      if (res.ok) {
+        const rows = await res.json();
+        if (Array.isArray(rows) && rows.length > 0) {
+          theme = mapRow(rows[0]);
+        }
       }
-    );
-
-    if (!res.ok) return FALLBACK_THEME;
-
-    const rows = await res.json();
-    if (!Array.isArray(rows) || rows.length === 0) return FALLBACK_THEME;
-
-    return mapRow(rows[0]);
-  } catch {
-    return FALLBACK_THEME;
+    } catch {
+      // FALLBACK_THEME 유지
+    }
   }
+
+  // 개발/테스트용 미리보기 오버라이드: /api/dev/theme-preview?mode=light|dark 로 설정되는 쿠키.
+  // 실제 테넌트 설정과 무관하게 이 브라우저에서만 즉시 라이트/다크를 전환해 볼 수 있다.
+  try {
+    const cookieStore = await cookies();
+    const previewMode = cookieStore.get("theme_preview")?.value;
+    if (previewMode === "light" || previewMode === "dark") {
+      theme = { ...theme, mode: previewMode };
+    }
+  } catch {
+    // 쿠키 접근 실패 시 무시
+  }
+
+  return theme;
 }

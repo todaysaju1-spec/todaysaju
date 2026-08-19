@@ -41,7 +41,7 @@ export default function InAppBrowserBanner() {
   if (!visible) return null;
 
   return (
-    <div className="sticky top-0 z-[60] w-full bg-[#1a0b2e]/95 border-b border-[#D4AF37]/40 backdrop-blur-md px-3 py-2.5">
+    <div className="sticky top-0 z-[60] w-full bg-[var(--bg-muted)]/95 border-b border-[var(--brand-primary)]/40 backdrop-blur-md px-3 py-2.5">
       <div className="max-w-6xl mx-auto flex items-start gap-2">
         <p className="flex-1 text-[11px] sm:text-xs text-gray-200 leading-relaxed">
           안정적인 서비스를 위해{" "}

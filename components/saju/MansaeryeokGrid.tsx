@@ -27,13 +27,13 @@ function GanzhiCell({
     <div
       className={`rounded-xl border p-2 md:p-3 text-center min-w-[72px] transition-all ${
         highlight
-          ? `ring-2 ring-[#D4AF37] ring-offset-2 ring-offset-[#120524] ${theme.bg} ${theme.border}`
+          ? `ring-2 ring-[var(--brand-primary)] ring-offset-2 ring-offset-[var(--bg-elevated)] ${theme.bg} ${theme.border}`
           : `${theme.bgSoft} ${theme.border}`
       }`}
     >
       <div className={`text-lg md:text-xl lg:text-2xl font-bold tracking-wider ${theme.text}`}>{ganzhi}</div>
       {subLabel && (
-        <div className="text-[10px] md:text-xs text-gray-400 mt-0.5 truncate">{subLabel}</div>
+        <div className="text-[10px] md:text-xs text-[var(--text-muted)] mt-0.5 truncate">{subLabel}</div>
       )}
       <div className="text-[9px] md:text-[10px] opacity-70 mt-0.5">
         {STEM_TO_OHANG[stem]}/{ohang}
@@ -57,12 +57,12 @@ function PillarsRow({
   ];
 
   return (
-    <div className="rounded-2xl border border-[#3b1d6b]/80 bg-[#0a0514]/80 p-4 md:p-5">
-      <h4 className="text-sm md:text-base lg:text-lg font-bold text-[#D4AF37] mb-3">사주 원국 (四柱)</h4>
+    <div className="rounded-2xl border border-[var(--border-default)]/80 bg-[var(--bg-base)]/80 p-4 md:p-5">
+      <h4 className="text-sm md:text-base lg:text-lg font-bold text-[var(--brand-primary)] mb-3">사주 원국 (四柱)</h4>
       <div className="grid grid-cols-4 gap-2 sm:gap-3">
         {pillars.map((p) => (
           <div key={p.key} className="flex flex-col items-center gap-1">
-            <span className="text-[10px] md:text-xs text-[#a48cd1] font-bold">{p.label}</span>
+            <span className="text-[10px] md:text-xs text-[var(--text-muted)] font-bold">{p.label}</span>
             <GanzhiCell
               ganzhi={p.ganzhi}
               subLabel={`${p.tg.stem}/${p.tg.branch}`}
@@ -86,17 +86,17 @@ function DaeunTable({ sajuResult }: { sajuResult: SajuResult }) {
 
   return (
     <div className="overflow-x-auto">
-      <h4 className="text-sm md:text-base lg:text-lg font-bold text-[#D4AF37] mb-3">
+      <h4 className="text-sm md:text-base lg:text-lg font-bold text-[var(--brand-primary)] mb-3">
         대운 (大運)
         {current && (
-          <span className="ml-2 text-[10px] md:text-xs font-normal text-[#a48cd1]">
+          <span className="ml-2 text-[10px] md:text-xs font-normal text-[var(--text-muted)]">
             현재 ★ {current.ganzhi} ({current.startAge}~{current.endAge}세)
           </span>
         )}
       </h4>
       <table className="w-full text-xs md:text-sm lg:text-base border-collapse min-w-[480px]">
         <thead>
-          <tr className="text-[#a48cd1] border-b border-[#3b1d6b]">
+          <tr className="text-[var(--text-muted)] border-b border-[var(--border-default)]">
             <th className="py-2 px-1 text-left font-medium">나이</th>
             <th className="py-2 px-1 text-left font-medium">연도</th>
             <th className="py-2 px-1 text-center font-medium">간지</th>
@@ -112,13 +112,13 @@ function DaeunTable({ sajuResult }: { sajuResult: SajuResult }) {
             return (
               <tr
                 key={`${item.startAge}-${item.ganzhi}`}
-                className={`border-b border-[#3b1d6b]/40 ${isCurrent ? "bg-[#D4AF37]/10" : "hover:bg-[#1c0d33]/50"}`}
+                className={`border-b border-[var(--border-default)]/40 ${isCurrent ? "bg-[var(--brand-primary)]/10" : "hover:bg-[var(--bg-elevated)]/50"}`}
               >
-                <td className="py-2 px-1 text-gray-300 whitespace-nowrap">
-                  {isCurrent && <span className="text-[#D4AF37] mr-1">★</span>}
+                <td className="py-2 px-1 text-[var(--text-muted)] whitespace-nowrap">
+                  {isCurrent && <span className="text-[var(--brand-primary)] mr-1">★</span>}
                   {item.startAge}~{item.endAge}세
                 </td>
-                <td className="py-2 px-1 text-gray-400">{item.startYear}</td>
+                <td className="py-2 px-1 text-[var(--text-muted)]">{item.startYear}</td>
                 <td className="py-2 px-1">
                   <span
                     className={`inline-block px-2 py-1 rounded-lg font-bold text-xs md:text-sm ${theme.bg} ${theme.text} border ${theme.border}`}
@@ -126,9 +126,9 @@ function DaeunTable({ sajuResult }: { sajuResult: SajuResult }) {
                     {item.ganzhi}
                   </span>
                 </td>
-                <td className="py-2 px-1 text-gray-300">{item.stemTenGod}</td>
-                <td className="py-2 px-1 text-gray-300">{item.branchTenGod}</td>
-                <td className="py-2 px-1 text-gray-400">{item.stage12}</td>
+                <td className="py-2 px-1 text-[var(--text-muted)]">{item.stemTenGod}</td>
+                <td className="py-2 px-1 text-[var(--text-muted)]">{item.branchTenGod}</td>
+                <td className="py-2 px-1 text-[var(--text-muted)]">{item.stage12}</td>
               </tr>
             );
           })}
@@ -146,7 +146,7 @@ function SeyunTable({ sajuResult }: { sajuResult: SajuResult }) {
 
   return (
     <div>
-      <h4 className="text-sm md:text-base lg:text-lg font-bold text-[#D4AF37] mb-3 mt-5">
+      <h4 className="text-sm md:text-base lg:text-lg font-bold text-[var(--brand-primary)] mb-3 mt-5">
         세운 (歲運) · {currentYear - 3}~{currentYear + 5}
       </h4>
       <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2">
@@ -158,18 +158,18 @@ function SeyunTable({ sajuResult }: { sajuResult: SajuResult }) {
               key={item.year}
               className={`rounded-xl border p-2 md:p-2.5 text-center ${
                 isCurrent
-                  ? "ring-2 ring-[#D4AF37] bg-[#D4AF37]/10 border-[#D4AF37]/60"
+                  ? "ring-2 ring-[var(--brand-primary)] bg-[var(--brand-primary)]/10 border-[var(--brand-primary)]/60"
                   : `${theme.bgSoft} ${theme.border}`
               }`}
             >
               <div
-                className={`text-[10px] md:text-xs font-bold ${isCurrent ? "text-[#D4AF37]" : "text-gray-400"}`}
+                className={`text-[10px] md:text-xs font-bold ${isCurrent ? "text-[var(--brand-primary)]" : "text-[var(--text-muted)]"}`}
               >
                 {isCurrent ? "★ " : ""}
                 {item.year}
               </div>
               <div className={`text-base md:text-lg font-bold mt-1 ${theme.text}`}>{item.ganzhi}</div>
-              <div className="text-[9px] md:text-[10px] text-gray-500 mt-1 leading-tight">
+              <div className="text-[9px] md:text-[10px] text-[var(--text-muted)] mt-1 leading-tight">
                 {item.tenGodStem}/{item.tenGodBranch}
               </div>
               <div className="text-[9px] md:text-[10px] text-gray-600">{item.stage12}</div>
@@ -189,7 +189,7 @@ function DaeunSeyunSection({
   onMenuSelect?: (menuTitle: string) => void;
 }) {
   return (
-    <div className="rounded-2xl border border-[#3b1d6b]/80 bg-[#0a0514]/80 p-4 md:p-5 overflow-x-auto">
+    <div className="rounded-2xl border border-[var(--border-default)]/80 bg-[var(--bg-base)]/80 p-4 md:p-5 overflow-x-auto">
       <DaeunTable sajuResult={sajuResult} />
       <SeyunTable sajuResult={sajuResult} />
 
