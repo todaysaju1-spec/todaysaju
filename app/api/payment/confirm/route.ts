@@ -44,6 +44,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const paymentId = body?.paymentId as string | undefined;
     const packageId = body?.packageId as string | undefined;
+    const payMethod = body?.payMethod === "EASY_PAY" ? "KAKAOPAY" : "CARD";
 
     if (!paymentId || !packageId) {
       return NextResponse.json({ error: "paymentId, packageId가 필요합니다." }, { status: 400 });
@@ -141,7 +142,7 @@ export async function POST(request: NextRequest) {
       ticket_type: pkg.category,
       ticket_count: pkg.tickets,
       payment_id: paymentId,
-      pay_method: "CARD",
+      pay_method: payMethod,
       status: "PAID",
     });
 

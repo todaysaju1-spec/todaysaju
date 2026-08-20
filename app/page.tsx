@@ -16,6 +16,8 @@ import SajuDashboard from "@/components/saju/SajuDashboard";
 
 const PORTONE_STORE_ID = "store-252438e8-5d98-47ec-b2a6-e040643cf1a6";
 const PORTONE_CHANNEL_KEY = "channel-key-fd3937f3-b47f-4de6-9a08-16c085c44f46";
+// TODO: PortOne 콘솔에서 카카오페이 채널을 추가한 뒤, 그 채널의 channelKey로 교체해야 함
+const PORTONE_KAKAOPAY_CHANNEL_KEY = "channel-key-REPLACE_WITH_KAKAOPAY_CHANNEL_KEY";
 
 const FREE_SAJU_TITLE = "오늘의 무료 사주";
 const FREE_SAJU_TYPE = "free";
@@ -198,6 +200,7 @@ const [passwordInput, setPasswordInput] = useState("");
     | "partnerInfo"
     | "analyze"
     | "portone"
+    | "portone-kakao"
     | "deposit"
     | "pending"
     | "menu"
@@ -647,7 +650,7 @@ const fetchMyHistory = async () => {
     }
   };
 
-  const handlePortOnePayment = async () => {
+  const handlePortOnePayment = async (payMethod: "CARD" | "EASY_PAY" = "CARD") => {
     if (!selectedPackage) {
       alert("결제할 상품을 먼저 선택해 주세요.");
       return;
@@ -656,8 +659,9 @@ const fetchMyHistory = async () => {
 
     const passName = selectedPackage.category === "premium" ? "프리미엄 패스" : "스탠다드 패스";
     const orderName = `[오늘의사주] ${passName} ${selectedPackage.label}`;
+    const channelKey = payMethod === "EASY_PAY" ? PORTONE_KAKAOPAY_CHANNEL_KEY : PORTONE_CHANNEL_KEY;
 
-    setLoadingAction("portone");
+    setLoadingAction(payMethod === "EASY_PAY" ? "portone-kakao" : "portone");
     try {
       const PortOne = await import("@portone/browser-sdk/v2");
       const paymentId = `payment-${Date.now()}${Math.random().toString(36).slice(2, 11)}`;
@@ -668,12 +672,12 @@ const fetchMyHistory = async () => {
 
       const response = await PortOne.requestPayment({
         storeId: PORTONE_STORE_ID,
-        channelKey: PORTONE_CHANNEL_KEY,
+        channelKey,
         paymentId,
         orderName,
         totalAmount: selectedPackage.price,
         currency: "CURRENCY_KRW",
-        payMethod: "CARD",
+        payMethod,
         windowType: {
           pc: "IFRAME",
           mobile: "REDIRECTION",
@@ -722,6 +726,7 @@ const fetchMyHistory = async () => {
         body: JSON.stringify({
           paymentId: response.paymentId || paymentId,
           packageId: selectedPackage.id,
+          payMethod,
         }),
       });
 
@@ -2153,14 +2158,22 @@ const handlePremiumClick = async () => {
               </div>
             </div>
 
-            {/* 포트원 KCP 결제 */}
+            {/* 포트원 결제: 카드 / 카카오페이 */}
             <button
               type="button"
-              onClick={handlePortOnePayment}
-              disabled={isLoading("portone")}
+              onClick={() => handlePortOnePayment("CARD")}
+              disabled={isAnyActionLoading && !isLoading("portone")}
               className="w-full py-3.5 mb-2 bg-gradient-to-r from-[var(--border-strong)] to-[var(--bg-muted)] border-2 border-[var(--brand-primary)] text-[var(--brand-primary)] rounded-xl text-sm font-extrabold hover:border-[var(--brand-primary-soft)] hover:shadow-[0_0_15px_rgba(212,175,55,0.25)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {renderLoadingContent("portone", "💳 카드 결제하기")}
+            </button>
+            <button
+              type="button"
+              onClick={() => handlePortOnePayment("EASY_PAY")}
+              disabled={isAnyActionLoading && !isLoading("portone-kakao")}
+              className="w-full py-3.5 mb-2 bg-[#FEE500] hover:bg-[#F4DC00] text-[#000000] rounded-xl text-sm font-extrabold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {renderLoadingContent("portone-kakao", "💛 카카오페이로 결제하기")}
             </button>
 
             {/* 입금자명 입력 및 계좌 안내 (패키지를 선택했을 때만 보임) */}
