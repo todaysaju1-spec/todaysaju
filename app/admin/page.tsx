@@ -38,7 +38,7 @@ export default function AdminDashboard() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const isAuthenticated = authStatus === "authorized";
 
-  const [activeTab, setActiveTab] = useState<"deposits" | "cardPayments" | "users" | "statistics" | "theme">("deposits");
+  const [activeTab, setActiveTab] = useState<"cardPayments" | "users" | "statistics" | "theme">("cardPayments");
 
   const [tenantTheme, setTenantTheme] = useState<{ mode: "dark" | "light" } | null>(null);
   const [loadingTheme, setLoadingTheme] = useState(false);
@@ -54,9 +54,6 @@ export default function AdminDashboard() {
 
   const [users, setUsers] = useState<any[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
-
-  const [requests, setRequests] = useState<any[]>([]);
-  const [loadingRequests, setLoadingRequests] = useState(false);
 
   const [cardPayments, setCardPayments] = useState<any[]>([]);
   const [loadingCardPayments, setLoadingCardPayments] = useState(false);
@@ -136,7 +133,6 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (!isAuthenticated) return;
     if (activeTab === "users") fetchUsers();
-    if (activeTab === "deposits") fetchRequests();
     if (activeTab === "cardPayments") fetchCardPayments();
     if (activeTab === "statistics") fetchStatistics();
     if (activeTab === "theme") fetchTenantTheme();
@@ -219,17 +215,6 @@ export default function AdminDashboard() {
       alert("✅ 회원의 티켓 잔여량이 성공적으로 수정되었습니다.");
       fetchUsers();
     }
-  };
-
-  const fetchRequests = async () => {
-    setLoadingRequests(true);
-    const res = await adminFetch("/api/admin/deposit-requests");
-    if (res) {
-      const json = await res.json();
-      if (!res.ok) console.error("입금 내역 에러:", json.error);
-      else setRequests(json.data || []);
-    }
-    setLoadingRequests(false);
   };
 
   const fetchCardPayments = async () => {
@@ -401,31 +386,6 @@ export default function AdminDashboard() {
     setIsUserDetailLoading(false);
   };
 
-  const handleApprove = async (request: any) => {
-    const ticketLabel = formatTicketLabel(request.ticket_type, request.ticket_count);
-    const isConfirmed = confirm(
-      `[${request.depositor_name}]님의 ${request.amount_krw.toLocaleString()}원 입금을 확인하셨습니까?\n확인을 누르면 ${ticketLabel}이(가) 지급됩니다.`
-    );
-    if (!isConfirmed) return;
-
-    const res = await adminFetch("/api/admin/deposit-requests", {
-      method: "POST",
-      body: JSON.stringify({ requestId: request.id }),
-    });
-
-    if (!res) return;
-
-    const json = await res.json();
-    if (!res.ok) {
-      console.error("지급 중 오류 발생:", json.error);
-      alert("지급 처리 중 오류가 발생했습니다: " + json.error);
-      return;
-    }
-
-    alert("🎉 티켓 지급이 완료되었습니다!");
-    fetchRequests();
-  };
-
   if (authStatus === "checking") {
     return (
       <div className="min-h-screen bg-[#0a0514] text-white flex items-center justify-center">
@@ -512,16 +472,6 @@ export default function AdminDashboard() {
 
           <div className="flex gap-4">
             <button
-              onClick={() => setActiveTab("deposits")}
-              className={`flex items-center gap-2 px-6 py-3 rounded-t-xl font-bold transition-all ${
-                activeTab === "deposits"
-                  ? "bg-[#1c0d33] border-t border-l border-r border-[#D4AF37] text-[#D4AF37]"
-                  : "bg-transparent text-gray-400 hover:text-white"
-              }`}
-            >
-              <CreditCard size={18} /> 무통장 입금 관리
-            </button>
-            <button
               onClick={() => setActiveTab("cardPayments")}
               className={`flex items-center gap-2 px-6 py-3 rounded-t-xl font-bold transition-all ${
                 activeTab === "cardPayments"
@@ -563,78 +513,6 @@ export default function AdminDashboard() {
             </button>
           </div>
         </div>
-
-        {/* 탭 1: 무통장 입금 관리 화면 */}
-        {activeTab === "deposits" && (
-          <div className="bg-[#15072a]/90 backdrop-blur-xl rounded-b-2xl rounded-tr-2xl border border-[#3b1d6b] overflow-hidden shadow-2xl animate-in fade-in duration-300">
-            <div className="p-4 bg-[#1c0d33] border-b border-[#3b1d6b] flex justify-between items-center">
-              <span className="text-[#a48cd1] font-bold">입금 신청 내역</span>
-              <button onClick={fetchRequests} className="text-xs bg-[#D4AF37]/20 text-[#D4AF37] px-3 py-1.5 rounded hover:bg-[#D4AF37]/30">
-                🔄 새로고침
-              </button>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse whitespace-nowrap">
-                <thead>
-                  <tr className="bg-[#1c0d33]/50 border-b border-[#3b1d6b]">
-                    <th className="p-4 text-sm text-[#a48cd1] font-medium">신청일시</th>
-                    <th className="p-4 text-sm text-[#a48cd1] font-medium">입금자명 (계정)</th>
-                    <th className="p-4 text-sm text-[#a48cd1] font-medium">입금(예정) 금액</th>
-                    <th className="p-4 text-sm text-[#a48cd1] font-medium">구매한 티켓</th>
-                    <th className="p-4 text-sm text-[#a48cd1] font-medium text-center">관리 액션</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loadingRequests ? (
-                    <tr>
-                      <td colSpan={5} className="p-8 text-center text-gray-400 animate-pulse">
-                        데이터를 불러오는 중입니다...
-                      </td>
-                    </tr>
-                  ) : requests.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="p-8 text-center text-gray-400">
-                        접수된 신청 내역이 없습니다.
-                      </td>
-                    </tr>
-                  ) : (
-                    requests.map((req) => (
-                      <tr key={req.id} className="border-b border-[#3b1d6b]/50 hover:bg-[#1e0c3a] transition-colors">
-                        <td className="p-4 text-xs text-gray-400">{new Date(req.created_at).toLocaleString()}</td>
-                        <td className="p-4">
-                          <div className="font-bold text-white">{req.depositor_name}</div>
-                          <div className="text-[10px] text-gray-500 font-mono mt-0.5">
-                            {req.user_email || "이메일 정보 없음"}
-                          </div>
-                        </td>
-                        <td className="p-4 font-bold text-[#F3E5AB]">{req.amount_krw.toLocaleString()}원</td>
-                        <td className="p-4">
-                          <span className="text-[#D4AF37] font-bold">
-                            {formatTicketLabel(req.ticket_type, req.ticket_count)}
-                          </span>
-                        </td>
-                        <td className="p-4 text-center">
-                          {req.status === "pending" ? (
-                            <button
-                              onClick={() => handleApprove(req)}
-                              className="w-full bg-[#D4AF37] hover:bg-[#F3E5AB] text-black font-extrabold py-2 px-3 rounded-lg flex items-center justify-center gap-1 transition-all text-xs"
-                            >
-                              <Wallet size={14} /> 지급 완료
-                            </button>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 bg-green-900/30 text-green-400 border border-green-800/50 px-3 py-2 rounded-lg text-xs font-bold w-full justify-center">
-                              <CheckCircle2 size={14} /> 처리됨
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
 
         {/* 탭: 카드 결제 내역 화면 */}
         {activeTab === "cardPayments" && (
