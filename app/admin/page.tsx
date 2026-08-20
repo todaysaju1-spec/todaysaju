@@ -38,7 +38,11 @@ export default function AdminDashboard() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const isAuthenticated = authStatus === "authorized";
 
-  const [activeTab, setActiveTab] = useState<"deposits" | "cardPayments" | "users" | "statistics">("deposits");
+  const [activeTab, setActiveTab] = useState<"deposits" | "cardPayments" | "users" | "statistics" | "theme">("deposits");
+
+  const [tenantTheme, setTenantTheme] = useState<{ mode: "dark" | "light" } | null>(null);
+  const [loadingTheme, setLoadingTheme] = useState(false);
+  const [applyingThemeMode, setApplyingThemeMode] = useState<"dark" | "light" | null>(null);
   
   const [stats, setStats] = useState<any>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
@@ -135,6 +139,7 @@ export default function AdminDashboard() {
     if (activeTab === "deposits") fetchRequests();
     if (activeTab === "cardPayments") fetchCardPayments();
     if (activeTab === "statistics") fetchStatistics();
+    if (activeTab === "theme") fetchTenantTheme();
   }, [activeTab, isAuthenticated]);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -236,6 +241,40 @@ export default function AdminDashboard() {
       else setCardPayments(json.data || []);
     }
     setLoadingCardPayments(false);
+  };
+
+  const fetchTenantTheme = async () => {
+    setLoadingTheme(true);
+    const res = await adminFetch("/api/admin/theme");
+    if (res) {
+      const json = await res.json();
+      if (!res.ok) console.error("테마 조회 에러:", json.error);
+      else setTenantTheme(json.data);
+    }
+    setLoadingTheme(false);
+  };
+
+  const handleApplyTheme = async (mode: "dark" | "light") => {
+    if (applyingThemeMode) return;
+    setApplyingThemeMode(mode);
+    try {
+      const res = await adminFetch("/api/admin/theme", {
+        method: "PATCH",
+        body: JSON.stringify({ mode }),
+      });
+      if (!res) return;
+
+      const json = await res.json();
+      if (!res.ok) {
+        alert("❌ 테마 적용 실패: " + json.error);
+        return;
+      }
+
+      setTenantTheme((prev) => (prev ? { ...prev, mode } : { mode }));
+      alert(`✅ 사이트 테마가 "${mode === "light" ? "라이트" : "다크"}"로 적용되었습니다!`);
+    } finally {
+      setApplyingThemeMode(null);
+    }
   };
 
   const fetchStatistics = async () => {
@@ -511,6 +550,16 @@ export default function AdminDashboard() {
               }`}
             >
               <TrendingUp size={18} /> 실시간 통계
+            </button>
+            <button
+              onClick={() => setActiveTab("theme")}
+              className={`flex items-center gap-2 px-6 py-3 rounded-t-xl font-bold transition-all ${
+                activeTab === "theme"
+                  ? "bg-[#1c0d33] border-t border-l border-r border-[#D4AF37] text-[#D4AF37]"
+                  : "bg-transparent text-gray-400 hover:text-white"
+              }`}
+            >
+              🎨 테마 설정
             </button>
           </div>
         </div>
@@ -961,6 +1010,87 @@ export default function AdminDashboard() {
                       {selectedCalendarDate.replace(/-/g, ".")} — 결제 내역 없음
                     </div>
                   )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 탭: 테마 설정 */}
+        {activeTab === "theme" && (
+          <div className="bg-[#15072a]/90 backdrop-blur-xl rounded-b-2xl rounded-tr-2xl border border-[#3b1d6b] p-6 shadow-2xl animate-in fade-in duration-300">
+            <div className="flex justify-between items-center mb-6 pb-4 border-b border-[#3b1d6b]">
+              <div>
+                <h2 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB] flex items-center gap-2">
+                  🎨 사이트 테마 설정
+                </h2>
+                <p className="text-xs text-gray-500 mt-1">버튼을 누르면 실제 서비스 화면이 즉시 해당 테마로 바뀝니다.</p>
+              </div>
+              <button onClick={fetchTenantTheme} className="text-xs bg-[#D4AF37]/20 text-[#D4AF37] px-3 py-1.5 rounded hover:bg-[#D4AF37]/30">
+                🔄 새로고침
+              </button>
+            </div>
+
+            {loadingTheme || !tenantTheme ? (
+              <div className="py-16 text-center text-gray-400 animate-pulse">현재 테마를 불러오는 중입니다...</div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {/* 다크 (기존) */}
+                <div
+                  className={`rounded-2xl border-2 p-5 transition-all ${
+                    tenantTheme.mode === "dark" ? "border-[#D4AF37] shadow-[0_0_20px_rgba(212,175,55,0.2)]" : "border-[#3b1d6b]"
+                  }`}
+                >
+                  <div className="rounded-xl overflow-hidden border border-[#3b1d6b] mb-4">
+                    <div className="bg-[#0a0514] p-4 space-y-2">
+                      <div className="h-2.5 w-2/3 rounded-full bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB]" />
+                      <div className="h-2 w-1/2 rounded-full bg-[#a48cd1]/60" />
+                      <div className="mt-3 h-6 w-20 rounded-lg bg-gradient-to-r from-[#D4AF37] to-[#F0D060]" />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="font-bold text-white">다크 (기존 오늘의사주)</span>
+                    {tenantTheme.mode === "dark" && (
+                      <span className="text-[10px] font-bold bg-[#D4AF37] text-[#120524] px-2 py-1 rounded-full">사용 중</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-400 mb-4">보라 배경 + 골드 포인트. 기존 오늘의사주 브랜드 색상입니다.</p>
+                  <button
+                    onClick={() => handleApplyTheme("dark")}
+                    disabled={tenantTheme.mode === "dark" || applyingThemeMode !== null}
+                    className="w-full bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] font-bold py-2.5 rounded-xl hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {applyingThemeMode === "dark" ? "적용 중..." : tenantTheme.mode === "dark" ? "현재 테마" : "이 테마 적용하기"}
+                  </button>
+                </div>
+
+                {/* 라이트 (기문당 스타일) */}
+                <div
+                  className={`rounded-2xl border-2 p-5 transition-all ${
+                    tenantTheme.mode === "light" ? "border-[#D4AF37] shadow-[0_0_20px_rgba(212,175,55,0.2)]" : "border-[#3b1d6b]"
+                  }`}
+                >
+                  <div className="rounded-xl overflow-hidden border border-[#3b1d6b] mb-4">
+                    <div className="bg-[#F7F8FA] p-4 space-y-2">
+                      <div className="h-2.5 w-2/3 rounded-full bg-[#2B3A67]" />
+                      <div className="h-2 w-1/2 rounded-full bg-[#6B7280]/60" />
+                      <div className="mt-3 h-6 w-20 rounded-lg bg-[#2B3A67]" />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="font-bold text-white">라이트 (기문당 스타일)</span>
+                    {tenantTheme.mode === "light" && (
+                      <span className="text-[10px] font-bold bg-[#D4AF37] text-[#120524] px-2 py-1 rounded-full">사용 중</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-400 mb-4">오프화이트 배경 + 네이비 포인트. 미니멀한 라이트 모드입니다.</p>
+                  <button
+                    onClick={() => handleApplyTheme("light")}
+                    disabled={tenantTheme.mode === "light" || applyingThemeMode !== null}
+                    className="w-full bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] font-bold py-2.5 rounded-xl hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {applyingThemeMode === "light" ? "적용 중..." : tenantTheme.mode === "light" ? "현재 테마" : "이 테마 적용하기"}
+                  </button>
                 </div>
               </div>
             )}

@@ -62,7 +62,9 @@ export async function getCurrentTenantTheme(): Promise<TenantTheme> {
         `${supabaseUrl}/rest/v1/tenant_themes?select=*,tenants!inner(slug)&tenants.slug=eq.${encodeURIComponent(slug)}&limit=1`,
         {
           headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
-          next: { revalidate: 60 },
+          // 트래픽이 적어 매 요청 최신값을 그대로 가져온다 — 관리자가 테마를 바꾸면
+          // 다음 페이지 로드부터 바로 반영되어야 하므로 캐시하지 않는다.
+          cache: "no-store",
         }
       );
 
