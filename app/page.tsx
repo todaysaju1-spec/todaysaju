@@ -16,8 +16,7 @@ import SajuDashboard from "@/components/saju/SajuDashboard";
 
 const PORTONE_STORE_ID = "store-252438e8-5d98-47ec-b2a6-e040643cf1a6";
 const PORTONE_CHANNEL_KEY = "channel-key-fd3937f3-b47f-4de6-9a08-16c085c44f46";
-// TODO: PortOne 콘솔에서 카카오페이 채널을 추가한 뒤, 그 채널의 channelKey로 교체해야 함
-const PORTONE_KAKAOPAY_CHANNEL_KEY = "channel-key-REPLACE_WITH_KAKAOPAY_CHANNEL_KEY";
+const PORTONE_KAKAOPAY_CHANNEL_KEY = "channel-key-a59eea76-cd6f-4448-8969-b43abee9e7ae";
 
 const FREE_SAJU_TITLE = "오늘의 무료 사주";
 const FREE_SAJU_TYPE = "free";
