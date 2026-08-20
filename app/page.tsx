@@ -2,7 +2,7 @@
 
 import { useState, useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Lock, Wallet, ArrowRight, Star, Moon, Compass, CheckCircle2, Gift, MessageCircle } from "lucide-react";
+import { Sparkles, Lock, Wallet, ArrowRight, Star, Moon, Compass, CheckCircle2, Gift } from "lucide-react";
 import { supabase } from "@/lib/supabase"; // Supabase 연동 클라이언트
 import { calculateSaju, type SajuResult } from "ssaju";
 import { safeGetJSON, safeSetJSON, safeSetItem, safeSessionSetJSON } from "@/lib/safe-storage";
@@ -200,7 +200,6 @@ const [passwordInput, setPasswordInput] = useState("");
     | "analyze"
     | "portone"
     | "portone-kakao"
-    | "deposit"
     | "pending"
     | "menu"
     | "premium";
@@ -220,7 +219,6 @@ const [passwordInput, setPasswordInput] = useState("");
     );
  // 이용권 구매용 상태 추가
   const [selectedPackage, setSelectedPackage] = useState<any>(null);
-  const [depositorName, setDepositorName] = useState("");
   const [showSajuDashboard, setShowSajuDashboard] = useState(false);
   const [dashboardSajuResult, setDashboardSajuResult] = useState<SajuResult | null>(null);
 
@@ -751,36 +749,6 @@ const fetchMyHistory = async () => {
     }
   };
 
-  const handleDepositSubmit = async () => {
-    if (!selectedPackage) return alert("구매할 이용권을 선택해 주세요!");
-    if (!depositorName.trim()) return alert("입금자명을 입력해 주세요!");
-    if (!user) return alert("로그인 정보가 없습니다. 다시 로그인해 주세요.");
-    if (isAnyActionLoading) return;
-
-    setLoadingAction("deposit");
-    try {
-      const { error } = await supabase.from("deposit_requests").insert({
-        user_id: user.id,
-        user_email: user.email || user.user_metadata?.email || "이메일 없음",
-        depositor_name: depositorName,
-        amount_krw: selectedPackage.price,
-        ticket_type: selectedPackage.category,
-        ticket_count: selectedPackage.tickets,
-      });
-
-      if (error) {
-        console.error("신청 에러:", error);
-        alert("신청 중 오류가 발생했습니다. 다시 시도해 주세요.");
-      } else {
-        alert("✅ 입금 알림이 접수되었습니다!\n관리자 확인 후 1~3분 내로 티켓이 지급됩니다.");
-        setShowChargeModal(false);
-        setSelectedPackage(null);
-        setDepositorName("");
-      }
-    } finally {
-      setLoadingAction(null);
-    }
-  };
   // ── 사주 분석 시작 ──
 
 // 🎟️ 오늘의 무료 사주를 이미 사용한 경우, 스탠다드 티켓 1장을 차감하고 다시 분석
@@ -2070,7 +2038,7 @@ const handlePremiumClick = async () => {
 
       </div>
 
-      {/* 💳 [모달] 이용권 구매 (무통장 입금 연동) */}
+      {/* 💳 [모달] 이용권 구매 (카드 / 카카오페이) */}
       {showChargeModal && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[100] flex items-center justify-center p-5 animate-in fade-in">
           <div className="bg-[var(--bg-elevated)] border border-[var(--brand-primary)]/50 w-full max-w-lg rounded-3xl p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
@@ -2175,59 +2143,13 @@ const handlePremiumClick = async () => {
               {renderLoadingContent("portone-kakao", "💛 카카오페이로 결제하기")}
             </button>
 
-            {/* 입금자명 입력 및 계좌 안내 (패키지를 선택했을 때만 보임) */}
-            {selectedPackage && (
-              <div className="animate-in slide-in-from-top-2">
-                <h4 className="text-sm font-bold text-[var(--text-body)] mb-3 mt-5 pt-5 border-t border-[var(--border-default)]">💸 계좌이체 (무통장 입금)</h4>
-                <div className="mb-4">
-                  <input
-                    type="text"
-                    placeholder="입금하시는 분 성함 (예: 홍길동)"
-                    value={depositorName}
-                    onChange={(e) => setDepositorName(e.target.value)}
-                    className="w-full bg-[var(--bg-base)] border border-[var(--brand-primary)]/50 rounded-xl px-4 py-3 text-sm text-[var(--text-body)] focus:outline-none focus:border-[var(--brand-primary)]"
-                  />
-                </div>
-                <div className="bg-[var(--bg-base)] rounded-xl p-4 mb-5 border border-[var(--border-default)] text-center">
-                  <p className="text-[11px] text-[var(--text-muted)] mb-1">
-                    아래 계좌로 <strong className="text-[var(--text-body)]">{selectedPackage.price.toLocaleString()}원</strong>을 입금해 주세요
-                  </p>
-                  <p className="text-xs text-[var(--brand-primary)] font-bold mb-1">
-                    {selectedPackage.category === "premium" ? "프리미엄 패스" : "스탠다드 패스"} · {selectedPackage.label} ({selectedPackage.tickets}티켓)
-                  </p>
-                  <p className="text-sm font-mono font-bold text-[var(--brand-primary)] tracking-wider">국민은행 472501-04-223221</p>
-                  <p className="text-[11px] text-[var(--text-muted)] mt-0.5">예금주: 이동희(플럭스미디어)</p>
-                  <a
-                    href="http://pf.kakao.com/_MbvfX/chat"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-3 flex items-center justify-center gap-2 bg-[#FEE500] text-[#000000] text-xs font-bold py-2.5 rounded-xl hover:bg-[#F4DC00] transition-all"
-                  >
-                    <MessageCircle size={14} />
-                    입금 후 카톡으로 인증하기 (빠른 처리)
-                  </a>
-                </div>
-              </div>
-            )}
-
             {/* 하단 버튼 */}
             <div className="flex gap-2 mt-4">
               <button
-                onClick={() => { setShowChargeModal(false); setSelectedPackage(null); setDepositorName(""); }}
+                onClick={() => { setShowChargeModal(false); setSelectedPackage(null); }}
                 className="flex-1 py-3 bg-[var(--bg-elevated)] text-[var(--text-muted)] rounded-xl text-xs font-bold hover:bg-[var(--bg-elevated-alt)] transition-colors"
               >
                 닫기
-              </button>
-              <button
-                onClick={handleDepositSubmit}
-                className={`flex-[2] py-3 rounded-xl text-xs font-extrabold shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed ${
-                  selectedPackage && depositorName
-                    ? "bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-hover)] text-[var(--text-on-brand)] hover:shadow-[0_0_15px_rgba(212,175,55,0.4)]"
-                    : "bg-[var(--bg-elevated)] text-[var(--text-muted)] cursor-not-allowed"
-                }`}
-                disabled={!selectedPackage || !depositorName || isLoading("deposit")}
-              >
-                {renderLoadingContent("deposit", "입금 완료했어요")}
               </button>
             </div>
 
