@@ -10,42 +10,27 @@ type OrnateFrameProps = {
   children: ReactNode;
 };
 
-// 전통 나경/한복 소품에서 보이는 이중 테두리 + 모서리 장식 프레임.
-// 순수 CSS(테두리 겹침)로만 그려서 캐릭터 테마의 브랜드 컬러(var(--brand-primary))를
-// 그대로 따라간다 — 지금은 캐릭터 테마의 동양화/한복 분위기에 맞춰 그 화면들에서만
-// active={true}로 켜서 쓴다.
+// 창호지문(한지 창살문) 느낌의 액자형 프레임 — 각진 테두리 안에 격자 살 무늬가 은은하게
+// 비치는 "매트"가 있고, 그 안에 기존 카드(둥근 모서리 그대로)가 놓인다. 이렇게 하면
+// 안쪽 카드의 둥근 모서리와 바깥 테두리가 서로 부딪히지 않는다(액자 매트 안에 놓인
+// 둥근 사진 같은 느낌). 격자/테두리 색은 var(--brand-primary) 토큰을 그대로 쓴다.
 export default function OrnateFrame({ size = "lg", className = "", active = true, children }: OrnateFrameProps) {
   if (!active) return <>{children}</>;
 
-  const inset = size === "lg" ? 5 : 3;
-  const corner = size === "lg" ? 12 : 8;
-  const borderW = size === "lg" ? 2 : 1.5;
-
-  const cornerStyle = (pos: "tl" | "tr" | "bl" | "br"): React.CSSProperties => {
-    const base: React.CSSProperties = {
-      position: "absolute",
-      width: corner,
-      height: corner,
-      pointerEvents: "none",
-    };
-    if (pos === "tl") return { ...base, top: -1, left: -1, borderTop: `${borderW}px solid var(--brand-primary)`, borderLeft: `${borderW}px solid var(--brand-primary)` };
-    if (pos === "tr") return { ...base, top: -1, right: -1, borderTop: `${borderW}px solid var(--brand-primary)`, borderRight: `${borderW}px solid var(--brand-primary)` };
-    if (pos === "bl") return { ...base, bottom: -1, left: -1, borderBottom: `${borderW}px solid var(--brand-primary)`, borderLeft: `${borderW}px solid var(--brand-primary)` };
-    return { ...base, bottom: -1, right: -1, borderBottom: `${borderW}px solid var(--brand-primary)`, borderRight: `${borderW}px solid var(--brand-primary)` };
-  };
+  const mat = size === "lg" ? 7 : 4;
+  const lattice = size === "lg" ? 13 : 9;
+  const latticeLine = "color-mix(in srgb, var(--brand-primary) 45%, transparent)";
 
   return (
-    <div className={`relative ${className}`}>
-      {/* 안쪽 이중 테두리 라인 */}
-      <div
-        className="absolute pointer-events-none"
-        style={{ inset, border: "1px solid var(--brand-primary)", opacity: 0.6 }}
-      />
-      {/* 네 모서리 장식 */}
-      <div style={cornerStyle("tl")} />
-      <div style={cornerStyle("tr")} />
-      <div style={cornerStyle("bl")} />
-      <div style={cornerStyle("br")} />
+    <div
+      className={`relative rounded-md ${className}`}
+      style={{
+        padding: mat,
+        border: "1.5px solid var(--brand-primary)",
+        backgroundImage: `repeating-linear-gradient(${latticeLine} 0 1px, transparent 1px ${lattice}px), repeating-linear-gradient(90deg, ${latticeLine} 0 1px, transparent 1px ${lattice}px)`,
+        backgroundColor: "var(--bg-base)",
+      }}
+    >
       {children}
     </div>
   );
