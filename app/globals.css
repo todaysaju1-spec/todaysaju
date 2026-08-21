@@ -69,7 +69,7 @@ body {
 }
 
 /* 캐릭터(꽃미남 명리사) 테마: 히어로 이미지의 하늘색/먹색 동양화 톤에 맞춘 팔레트 —
-   차분한 미스트 블루 배경 + 짙은 남색 텍스트 + 골드 포인트(별자리·붉은 낙관과 어울리도록) */
+   차분한 미스트 블루 배경 + 포스터 속 버튼과 같은 짙은 남색 포인트(골드는 하늘색과 붕 떠서 제외) */
 [data-theme="character"] {
   --bg-base: #EEF3F9;
   --bg-surface: #FFFFFF;
@@ -81,10 +81,17 @@ body {
   --border-strong: #A7C0D6;
   --text-body: #223247;
   --text-muted: #62778D;
-  --brand-primary: #C79A3D;
-  --brand-primary-soft: #E3C579;
-  --brand-primary-hover: #A87D2A;
-  --text-on-brand: #23180A;
+  --brand-primary: #2C4159;
+  --brand-primary-soft: #5B7A99;
+  --brand-primary-hover: #1D2E42;
+  --text-on-brand: #F5EFE0;
+}
+
+/* 캐릭터 테마 제목: 동양화/한복 분위기에 맞는 한글 세리프 폰트 */
+[data-theme="character"] h1,
+[data-theme="character"] h2,
+[data-theme="character"] h3 {
+  font-family: var(--font-noto-serif-kr), serif;
 }
 
 [data-theme="character"] .cosmic-bg {

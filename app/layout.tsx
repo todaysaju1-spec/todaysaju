@@ -3,7 +3,7 @@ import InstallPrompt from "../components/InstallPrompt";
 import InAppBrowserBanner from "../components/InAppBrowserBanner";
 import Providers from "../components/Providers";
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Noto_Serif_KR } from "next/font/google";
 import Script from "next/script";
 import { getCurrentTenantTheme } from "@/lib/tenant-theme";
 import "./globals.css";
@@ -16,6 +16,13 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+// 캐릭터 테마(동양화/한복 분위기) 제목용 한글 세리프 폰트
+const notoSerifKr = Noto_Serif_KR({
+  variable: "--font-noto-serif-kr",
+  subsets: ["latin"],
+  weight: ["500", "700"],
 });
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -63,13 +70,7 @@ export default async function RootLayout({
       lang="en"
       data-theme={theme.mode}
       data-hero-image={theme.characterHeroImageUrl || ""}
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-      style={
-        {
-          "--brand-primary": theme.primaryColor,
-          "--brand-primary-soft": theme.accentColor,
-        } as React.CSSProperties
-      }
+      className={`${geistSans.variable} ${geistMono.variable} ${notoSerifKr.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
       <Script src="https://cdn.portone.io/v2/browser-sdk.js" strategy="afterInteractive" />
