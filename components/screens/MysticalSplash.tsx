@@ -27,17 +27,20 @@ const INNER_STARS = [
 
 // 🎬 [씬 0] 다크/라이트 테마 전용 풀스크린 스플래시.
 // 캐릭터 이미지 대신, 실제 24방위 나경(풍수 나침반)을 SVG/CSS 애니메이션으로 그린다.
-// 이미지가 아니라 코드로 그리기 때문에 나중에 색상/배경만 바꿔서 다른 무드로 재사용하기 쉽다.
+// 색상은 하드코딩하지 않고 테마 CSS 토큰(--brand-primary 등)을 그대로 참조하므로,
+// 새 테마를 추가할 때 globals.css에 팔레트만 정의하면 이 컴포넌트는 그대로 재사용된다.
+// isDark로 갈리는 부분은 "별빛 vs 수묵화 산" 같은 구조적 연출 선택뿐이다.
 export default function MysticalSplash({ variant, onEnter }: MysticalSplashProps) {
   const isDark = variant === "dark";
 
   const bg = isDark
     ? "radial-gradient(circle at 50% 42%, #1a0f05 0%, #0d0803 45%, #030201 100%)"
     : "radial-gradient(ellipse at 50% 30%, #E7EAF0 0%, #C9CFD9 45%, #9AA3B2 100%)";
-  const ringColor = isDark ? "#C9922E" : "#3A4257";
-  const glowColor = isDark ? "#F0B23A" : "transparent";
-  const textColor = isDark ? "#F0D9A8" : "#2B3242";
-  const dotColor = isDark ? "#E3B95C" : "#6B7690";
+  const ringColor = "var(--brand-primary)";
+  const glowColor = "var(--brand-primary)";
+  const textColor = "var(--text-body)";
+  const dotColor = "var(--brand-primary-soft)";
+  const panelColor = "var(--bg-base)";
 
   return (
     <button
@@ -114,7 +117,9 @@ export default function MysticalSplash({ variant, onEnter }: MysticalSplashProps
       <div
         className="relative rounded-full flex items-center justify-center"
         style={{
-          boxShadow: isDark ? `0 0 90px 20px ${glowColor}22, 0 0 40px ${glowColor}33 inset` : undefined,
+          boxShadow: isDark
+            ? `0 0 90px 20px color-mix(in srgb, ${glowColor} 13%, transparent), 0 0 40px color-mix(in srgb, ${glowColor} 20%, transparent) inset`
+            : undefined,
         }}
       >
         <svg viewBox="0 0 200 200" className="relative w-64 h-64 sm:w-80 sm:h-80" style={{ overflow: "visible" }}>
@@ -129,7 +134,7 @@ export default function MysticalSplash({ variant, onEnter }: MysticalSplashProps
           {isDark && <circle cx="100" cy="100" r="98" fill="url(#compassGlow)" />}
 
           {/* 바탕 원반 */}
-          <circle cx="100" cy="100" r="92" fill={isDark ? "#0d0703" : "none"} opacity={isDark ? 0.55 : 0} />
+          <circle cx="100" cy="100" r="92" fill={isDark ? panelColor : "none"} opacity={isDark ? 0.55 : 0} />
 
           {/* 바깥 링: 눈금 */}
           <g className="mystical-ring-outer">
@@ -196,10 +201,10 @@ export default function MysticalSplash({ variant, onEnter }: MysticalSplashProps
           </g>
 
           {/* 중심 원반 + 지붕(명당) 아이콘 */}
-          <circle cx="100" cy="100" r="34" fill={isDark ? "#120a04" : "#EEF0F3"} stroke={ringColor} strokeWidth="1.2" opacity="0.9" />
+          <circle cx="100" cy="100" r="34" fill={panelColor} stroke={ringColor} strokeWidth="1.2" opacity="0.9" />
           <g transform="translate(100 100)" fill={ringColor} opacity="0.95">
             <path d="M-16,6 L-16,14 L16,14 L16,6 L18,6 L0,-14 L-18,6 Z" />
-            <rect x="-3" y="6" width="6" height="8" fill={isDark ? "#120a04" : "#EEF0F3"} />
+            <rect x="-3" y="6" width="6" height="8" fill={panelColor} />
           </g>
         </svg>
       </div>

@@ -45,6 +45,8 @@ body {
   --brand-primary-soft: #F3E5AB;
   --brand-primary-hover: #F0D060;
   --text-on-brand: #120524;
+  --font-heading: var(--font-geist-sans), sans-serif;
+  --font-body: var(--font-geist-sans), sans-serif;
 }
 
 [data-theme="light"] {
@@ -62,6 +64,8 @@ body {
   --brand-primary-soft: #7C89B3;
   --brand-primary-hover: #1D2850;
   --text-on-brand: #FFFFFF;
+  --font-heading: var(--font-geist-sans), sans-serif;
+  --font-body: var(--font-geist-sans), sans-serif;
 }
 
 [data-theme="light"] .cosmic-bg {
@@ -85,13 +89,15 @@ body {
   --brand-primary-soft: #5B7A99;
   --brand-primary-hover: #1D2E42;
   --text-on-brand: #F5EFE0;
+  /* 동양화/한복 분위기에 맞는 한글 세리프 폰트. 새 테마를 추가할 때 이 두 값만
+     바꾸면 제목/본문 폰트가 전체적으로 따라간다 (컴포넌트 코드는 손댈 필요 없음) */
+  --font-heading: var(--font-noto-serif-kr), serif;
+  --font-body: var(--font-noto-serif-kr), serif;
 }
 
-/* 캐릭터 테마 제목: 동양화/한복 분위기에 맞는 한글 세리프 폰트 */
-[data-theme="character"] h1,
-[data-theme="character"] h2,
-[data-theme="character"] h3 {
-  font-family: var(--font-noto-serif-kr), serif;
+/* 제목 폰트는 테마별 --font-heading 토큰을 그대로 따라간다 (테마 추가 시 이 셀렉터는 안 건드려도 됨) */
+h1, h2, h3 {
+  font-family: var(--font-heading);
 }
 
 [data-theme="character"] .cosmic-bg {

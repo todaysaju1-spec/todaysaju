@@ -100,7 +100,7 @@ export default function ResultScreen({
 
         <div
           className="text-[var(--text-body)] text-lg md:text-xl leading-loose tracking-wide mb-6 whitespace-pre-wrap"
-          style={tenantTheme?.mode === "character" ? { fontFamily: "var(--font-noto-serif-kr), serif" } : undefined}
+          style={{ fontFamily: "var(--font-body)" }}
         >
           {sajuResultText.replaceAll("**", "")}
         </div>
