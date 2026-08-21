@@ -1,6 +1,6 @@
 import { cookies, headers } from "next/headers";
 
-export type TenantThemeMode = "dark" | "light";
+export type TenantThemeMode = "dark" | "light" | "character";
 
 export type TenantTheme = {
   siteName: string;
@@ -12,6 +12,9 @@ export type TenantTheme = {
   backgroundColor: string;
   logoUrl: string | null;
   faviconUrl: string | null;
+  characterHeroImageUrl: string | null;
+  characterLoadingImageUrl: string | null;
+  characterResultImageUrl: string | null;
 };
 
 const DEFAULT_TENANT_SLUG = "todaysaju";
@@ -29,19 +32,28 @@ const FALLBACK_THEME: TenantTheme = {
   backgroundColor: "#0a0514",
   logoUrl: null,
   faviconUrl: null,
+  characterHeroImageUrl: null,
+  characterLoadingImageUrl: null,
+  characterResultImageUrl: null,
 };
 
 function mapRow(row: any): TenantTheme {
+  const mode: TenantThemeMode =
+    row.mode === "light" ? "light" : row.mode === "character" ? "character" : "dark";
+
   return {
     siteName: row.site_name ?? FALLBACK_THEME.siteName,
     tagline: row.tagline ?? null,
     metaDescription: row.meta_description ?? null,
-    mode: row.mode === "light" ? "light" : "dark",
+    mode,
     primaryColor: row.primary_color ?? FALLBACK_THEME.primaryColor,
     accentColor: row.accent_color ?? FALLBACK_THEME.accentColor,
     backgroundColor: row.background_color ?? FALLBACK_THEME.backgroundColor,
     logoUrl: row.logo_url ?? null,
     faviconUrl: row.favicon_url ?? null,
+    characterHeroImageUrl: row.character_hero_image_url ?? null,
+    characterLoadingImageUrl: row.character_loading_image_url ?? null,
+    characterResultImageUrl: row.character_result_image_url ?? null,
   };
 }
 
@@ -84,7 +96,7 @@ export async function getCurrentTenantTheme(): Promise<TenantTheme> {
   try {
     const cookieStore = await cookies();
     const previewMode = cookieStore.get("theme_preview")?.value;
-    if (previewMode === "light" || previewMode === "dark") {
+    if (previewMode === "light" || previewMode === "dark" || previewMode === "character") {
       theme = { ...theme, mode: previewMode };
     }
   } catch {

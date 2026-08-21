@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
   const mode = request.nextUrl.searchParams.get("mode");
   const response = NextResponse.redirect(new URL("/", request.url));
 
-  if (mode === "light" || mode === "dark") {
+  if (mode === "light" || mode === "dark" || mode === "character") {
     response.cookies.set("theme_preview", mode, {
       path: "/",
       maxAge: 60 * 60 * 24 * 7,

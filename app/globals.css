@@ -67,3 +67,25 @@ body {
 [data-theme="light"] .cosmic-bg {
   background: #F7F8FA;
 }
+
+/* 캐릭터(꽃미남 명리사) 테마: 밝고 따뜻한 톤 — 크림/피치 배경 + 로즈골드 포인트 */
+[data-theme="character"] {
+  --bg-base: #FFF6EE;
+  --bg-surface: #FFFFFF;
+  --bg-elevated: #FFEFE1;
+  --bg-muted: #FFE6D2;
+  --bg-elevated-alt: #FFDCC2;
+  --bg-hover: #FFE1CC;
+  --border-default: #F3D9C4;
+  --border-strong: #E8C4A6;
+  --text-body: #3A2E28;
+  --text-muted: #8A7566;
+  --brand-primary: #D97757;
+  --brand-primary-soft: #F0B79C;
+  --brand-primary-hover: #C15F41;
+  --text-on-brand: #FFFFFF;
+}
+
+[data-theme="character"] .cosmic-bg {
+  background: #FFF6EE;
+}

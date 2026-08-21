@@ -40,9 +40,17 @@ export default function AdminDashboard() {
 
   const [activeTab, setActiveTab] = useState<"cardPayments" | "users" | "statistics" | "theme">("cardPayments");
 
-  const [tenantTheme, setTenantTheme] = useState<{ mode: "dark" | "light" } | null>(null);
+  type ThemeMode = "dark" | "light" | "character";
+  const [tenantTheme, setTenantTheme] = useState<{
+    mode: ThemeMode;
+    character_hero_image_url?: string | null;
+    character_loading_image_url?: string | null;
+    character_result_image_url?: string | null;
+  } | null>(null);
   const [loadingTheme, setLoadingTheme] = useState(false);
-  const [applyingThemeMode, setApplyingThemeMode] = useState<"dark" | "light" | null>(null);
+  const [applyingThemeMode, setApplyingThemeMode] = useState<ThemeMode | null>(null);
+  const [characterImageUrls, setCharacterImageUrls] = useState({ hero: "", loading: "", result: "" });
+  const [savingCharacterImages, setSavingCharacterImages] = useState(false);
   
   const [stats, setStats] = useState<any>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
@@ -233,13 +241,23 @@ export default function AdminDashboard() {
     const res = await adminFetch("/api/admin/theme");
     if (res) {
       const json = await res.json();
-      if (!res.ok) console.error("테마 조회 에러:", json.error);
-      else setTenantTheme(json.data);
+      if (!res.ok) {
+        console.error("테마 조회 에러:", json.error);
+      } else {
+        setTenantTheme(json.data);
+        setCharacterImageUrls({
+          hero: json.data?.character_hero_image_url || "",
+          loading: json.data?.character_loading_image_url || "",
+          result: json.data?.character_result_image_url || "",
+        });
+      }
     }
     setLoadingTheme(false);
   };
 
-  const handleApplyTheme = async (mode: "dark" | "light") => {
+  const THEME_MODE_LABEL: Record<ThemeMode, string> = { dark: "다크", light: "라이트", character: "캐릭터" };
+
+  const handleApplyTheme = async (mode: ThemeMode) => {
     if (applyingThemeMode) return;
     setApplyingThemeMode(mode);
     try {
@@ -256,9 +274,36 @@ export default function AdminDashboard() {
       }
 
       setTenantTheme((prev) => (prev ? { ...prev, mode } : { mode }));
-      alert(`✅ 사이트 테마가 "${mode === "light" ? "라이트" : "다크"}"로 적용되었습니다!`);
+      alert(`✅ 사이트 테마가 "${THEME_MODE_LABEL[mode]}"로 적용되었습니다!`);
     } finally {
       setApplyingThemeMode(null);
+    }
+  };
+
+  const handleSaveCharacterImages = async () => {
+    setSavingCharacterImages(true);
+    try {
+      const res = await adminFetch("/api/admin/theme", {
+        method: "PATCH",
+        body: JSON.stringify({
+          mode: tenantTheme?.mode || "character",
+          characterHeroImageUrl: characterImageUrls.hero,
+          characterLoadingImageUrl: characterImageUrls.loading,
+          characterResultImageUrl: characterImageUrls.result,
+        }),
+      });
+      if (!res) return;
+
+      const json = await res.json();
+      if (!res.ok) {
+        alert("❌ 이미지 저장 실패: " + json.error);
+        return;
+      }
+
+      alert("✅ 캐릭터 이미지 URL이 저장되었습니다!");
+      fetchTenantTheme();
+    } finally {
+      setSavingCharacterImages(false);
     }
   };
 
@@ -969,6 +1014,76 @@ export default function AdminDashboard() {
                   >
                     {applyingThemeMode === "light" ? "적용 중..." : tenantTheme.mode === "light" ? "현재 테마" : "이 테마 적용하기"}
                   </button>
+                </div>
+
+                {/* 캐릭터 (꽃미남 명리사) */}
+                <div
+                  className={`rounded-2xl border-2 p-5 transition-all md:col-span-2 ${
+                    tenantTheme.mode === "character" ? "border-[#D4AF37] shadow-[0_0_20px_rgba(212,175,55,0.2)]" : "border-[#3b1d6b]"
+                  }`}
+                >
+                  <div className="rounded-xl overflow-hidden border border-[#3b1d6b] mb-4">
+                    <div className="bg-[#FFF6EE] p-4 space-y-2">
+                      <div className="h-2.5 w-2/3 rounded-full bg-[#D97757]" />
+                      <div className="h-2 w-1/2 rounded-full bg-[#8A7566]/60" />
+                      <div className="mt-3 h-6 w-20 rounded-lg bg-[#D97757]" />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="font-bold text-white">캐릭터 (꽃미남 명리사)</span>
+                    {tenantTheme.mode === "character" && (
+                      <span className="text-[10px] font-bold bg-[#D4AF37] text-[#120524] px-2 py-1 rounded-full">사용 중</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-400 mb-4">크림/피치 배경 + 로즈골드 포인트. 히어로/로딩/결과 화면에 캐릭터 이미지가 표시됩니다.</p>
+                  <button
+                    onClick={() => handleApplyTheme("character")}
+                    disabled={tenantTheme.mode === "character" || applyingThemeMode !== null}
+                    className="w-full mb-5 bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-[#120524] font-bold py-2.5 rounded-xl hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {applyingThemeMode === "character" ? "적용 중..." : tenantTheme.mode === "character" ? "현재 테마" : "이 테마 적용하기"}
+                  </button>
+
+                  <div className="border-t border-[#3b1d6b] pt-4 space-y-3">
+                    <p className="text-xs text-[#a48cd1] font-bold">캐릭터 이미지 URL (이미지를 어딘가에 업로드한 뒤 그 주소를 붙여넣어 주세요)</p>
+                    <div>
+                      <label className="text-[11px] text-gray-500 block mb-1">히어로 배너용</label>
+                      <input
+                        type="text"
+                        value={characterImageUrls.hero}
+                        onChange={(e) => setCharacterImageUrls((prev) => ({ ...prev, hero: e.target.value }))}
+                        placeholder="https://..."
+                        className="w-full bg-[#0a0514] border border-[#3b1d6b] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#D4AF37]"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-gray-500 block mb-1">분석 중(로딩) 화면용</label>
+                      <input
+                        type="text"
+                        value={characterImageUrls.loading}
+                        onChange={(e) => setCharacterImageUrls((prev) => ({ ...prev, loading: e.target.value }))}
+                        placeholder="https://..."
+                        className="w-full bg-[#0a0514] border border-[#3b1d6b] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#D4AF37]"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-gray-500 block mb-1">결과 화면용</label>
+                      <input
+                        type="text"
+                        value={characterImageUrls.result}
+                        onChange={(e) => setCharacterImageUrls((prev) => ({ ...prev, result: e.target.value }))}
+                        placeholder="https://..."
+                        className="w-full bg-[#0a0514] border border-[#3b1d6b] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#D4AF37]"
+                      />
+                    </div>
+                    <button
+                      onClick={handleSaveCharacterImages}
+                      disabled={savingCharacterImages}
+                      className="w-full bg-[#1c0d33] border border-[#D4AF37]/50 text-[#D4AF37] font-bold py-2 rounded-lg text-xs hover:bg-[#D4AF37]/10 transition-all disabled:opacity-40"
+                    >
+                      {savingCharacterImages ? "저장 중..." : "이미지 URL 저장"}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Lock, Wallet, ArrowRight, Star, Moon, Compass, CheckCircle2, Gift } from "lucide-react";
+import { Star, Gift } from "lucide-react";
 import { supabase } from "@/lib/supabase"; // Supabase 연동 클라이언트
 import { calculateSaju, type SajuResult } from "ssaju";
 import { safeGetJSON, safeSetJSON, safeSetItem, safeSessionSetJSON } from "@/lib/safe-storage";
@@ -13,6 +13,12 @@ import { STANDARD_PACKAGES, PREMIUM_PACKAGES } from "@/lib/ticket-packages";
 import ButtonSpinner from "@/components/ButtonSpinner";
 import { useToast } from "@/components/ToastProvider";
 import SajuDashboard from "@/components/saju/SajuDashboard";
+import LandingHero from "@/components/screens/LandingHero";
+import LoginChoiceModal from "@/components/screens/LoginChoiceModal";
+import SajuInputForm from "@/components/screens/SajuInputForm";
+import AnalyzingScreen from "@/components/screens/AnalyzingScreen";
+import ResultScreen from "@/components/screens/ResultScreen";
+import FortuneMenuSection from "@/components/screens/FortuneMenuSection";
 
 const PORTONE_STORE_ID = "store-252438e8-5d98-47ec-b2a6-e040643cf1a6";
 const PORTONE_CHANNEL_KEY = "channel-key-fd3937f3-b47f-4de6-9a08-16c085c44f46";
@@ -158,6 +164,14 @@ export default function TodaySajuLanding() {
   const [sajuResultText, setSajuResultText] = useState("");
   // 💡 [추가] 랜덤 별자리 데이터를 담을 state
 const [stars, setStars] = useState<any[]>([]);
+
+// 테넌트 테마(다크/라이트/캐릭터) — 캐릭터 모드일 때 이미지 URL을 표시하기 위해 조회
+const [tenantTheme, setTenantTheme] = useState<{
+  mode: "dark" | "light" | "character";
+  characterHeroImageUrl: string | null;
+  characterLoadingImageUrl: string | null;
+  characterResultImageUrl: string | null;
+} | null>(null);
 // 꼬리질문 상태 (새로 추가)
 const [selectedQuestion, setSelectedQuestion] = useState("");
 const [followUpResult, setFollowUpResult] = useState("");
@@ -182,6 +196,8 @@ const [showGuestModal, setShowGuestModal] = useState(false);
 const [isAlreadyUsedModalOpen, setIsAlreadyUsedModalOpen] = useState(false);
 const [isTicketProcessing, setIsTicketProcessing] = useState(false);
 const [showEmailLoginModal, setShowEmailLoginModal] = useState(false);
+// 🚪 랜딩 히어로의 "지금 운세 보기" 버튼을 누르면 뜨는 로그인 방법 선택 모달
+const [showLoginChoiceModal, setShowLoginChoiceModal] = useState(false);
 const [emailInput, setEmailInput] = useState("");
 const [passwordInput, setPasswordInput] = useState("");
 // 🗂️ 보관함 전용 상태 모음
@@ -202,11 +218,15 @@ const [passwordInput, setPasswordInput] = useState("");
     | "portone-kakao"
     | "pending"
     | "menu"
-    | "premium";
+    | "premium"
+    | "guestSession";
 
   const [loadingAction, setLoadingAction] = useState<LoadingAction | null>(null);
   const isLoading = (action: LoadingAction) => loadingAction === action;
   const isAnyActionLoading = loadingAction !== null;
+  // 익명 게스트 세션이 아니라 실제(카카오/구글/이메일) 계정으로 로그인된 경우에만 true.
+  // 마이페이지/보관함/꼬리질문/프리미엄 등 "회원가입이 필요한" 기능은 이 값으로 게이트한다.
+  const isRealUser = !!user && !user.is_anonymous;
 
   const renderLoadingContent = (action: LoadingAction, label: ReactNode) =>
     isLoading(action) ? (
@@ -382,6 +402,22 @@ useEffect(() => {
 }, []);
 
 useEffect(() => {
+  fetch("/api/theme")
+    .then((res) => res.json())
+    .then((json) => {
+      if (json?.data) {
+        setTenantTheme({
+          mode: json.data.mode,
+          characterHeroImageUrl: json.data.characterHeroImageUrl,
+          characterLoadingImageUrl: json.data.characterLoadingImageUrl,
+          characterResultImageUrl: json.data.characterResultImageUrl,
+        });
+      }
+    })
+    .catch(() => {});
+}, []);
+
+useEffect(() => {
   const savedPartner = loadPartnerInfoFromStorage();
   if (!savedPartner) return;
 
@@ -445,7 +481,7 @@ const WITHDRAW_CONFIRM_MESSAGE =
   "⚠️ 정말 회원 탈퇴하시겠습니까?\n\n• 보유 중인 스탠다드/프리미엄 티켓이 모두 소멸됩니다.\n• 저장된 사주 보관함 내역이 초기화됩니다.\n• 탈퇴 후 재가입하셔도 기존 티켓은 복구되지 않습니다.\n\n정말 탈퇴를 진행하시려면 [확인]을 눌러주세요.";
 
 const handleWithdraw = async () => {
-  if (!user) return;
+  if (!isRealUser) return;
   if (!window.confirm(WITHDRAW_CONFIRM_MESSAGE)) return;
 
   setIsWithdrawing(true);
@@ -541,7 +577,7 @@ const saveMyProfile = async (userId: string) => {
 
 // 🗂️ [수정] DB에서 내 사주 기록을 가져오는 함수 (안전성 강화 버전)
 const fetchMyHistory = async () => {
-  if (!user) {
+  if (!isRealUser) {
     setShowGuestModal(true);
     return;
   }
@@ -573,16 +609,16 @@ const fetchMyHistory = async () => {
 };
 
   // ── 구글 간편 로그인 로직 ──
+  // 게스트(익명) 세션 상태에서 로그인하면 signInWithOAuth 대신 linkIdentity로 "승격"시켜서
+  // 같은 user.id를 유지한다 (그동안 쌓인 무료 사용 이력/입력 정보가 그대로 이어짐).
   const handleGoogleLogin = async () => {
     if (isAnyActionLoading) return;
     setLoadingAction("google");
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
-        },
-      });
+      const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined;
+      const { error } = user?.is_anonymous
+        ? await supabase.auth.linkIdentity({ provider: "google", options: { redirectTo } })
+        : await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo } });
 
       if (error) {
         console.error("로그인 에러:", error.message);
@@ -598,12 +634,10 @@ const fetchMyHistory = async () => {
     if (isAnyActionLoading) return;
     setLoadingAction("kakao");
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "kakao",
-        options: {
-          redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
-        },
-      });
+      const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined;
+      const { error } = user?.is_anonymous
+        ? await supabase.auth.linkIdentity({ provider: "kakao", options: { redirectTo } })
+        : await supabase.auth.signInWithOAuth({ provider: "kakao", options: { redirectTo } });
       if (error) {
         console.error("카카오 로그인 에러:", error.message);
         alert("카카오 로그인 연동 중 문제가 발생했습니다.");
@@ -702,7 +736,7 @@ const fetchMyHistory = async () => {
         return;
       }
 
-      if (!user) {
+      if (!isRealUser) {
         alert("로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요.");
         return;
       }
@@ -753,7 +787,7 @@ const fetchMyHistory = async () => {
 
 // 🎟️ 오늘의 무료 사주를 이미 사용한 경우, 스탠다드 티켓 1장을 차감하고 다시 분석
 const handleUseTicketAndRetry = async () => {
-  if (!user) return;
+  if (!isRealUser) return;
   if (standardTicket < 1) {
     alert("스탠다드 티켓이 부족합니다. 이용권을 구매해 주세요!");
     setIsAlreadyUsedModalOpen(false);
@@ -773,7 +807,69 @@ const handleUseTicketAndRetry = async () => {
   }
 };
 
+ // 랜딩 히어로의 "무료로 오늘의 운세보기" 버튼 핸들러.
+ // 회원가입 없이 바로 명식 입력 화면으로 보내되, 뒤에서 익명(게스트) 세션을 만들어
+ // 하루 1회 무료 제한 등 기존 서버 로직(user.id 기반)이 그대로 동작하게 한다.
+ const handleStartFreeGuest = async () => {
+   if (isAnyActionLoading) return;
+   if (!user) {
+     setLoadingAction("guestSession");
+     try {
+       const { error } = await supabase.auth.signInAnonymously();
+       if (error) {
+         console.error("게스트 세션 생성 실패:", error.message);
+         showToast("일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.", "error");
+         return;
+       }
+     } finally {
+       setLoadingAction(null);
+     }
+   }
+   setStep("input");
+ };
+
  // --- 사주 분석 시작 (B2B 화이트라벨 DB 연동 + ssaju + n8n) ---
+ // 입력 폼의 "오늘의 사주 무료보기" 버튼 클릭 핸들러 (동의 체크 후 handleAnalyze 실행)
+ const handleFreeAnalyzeClick = async () => {
+   if (hasUsedDailyFree) {
+     alert(FREE_SAJU_LIMIT_MESSAGE);
+     return;
+   }
+   if (!isAgreed) {
+     alert("서비스 이용을 위해 개인정보 수집 및 이용에 동의해 주세요.");
+     return;
+   }
+   if (!user) {
+     // 세션이 만료되었거나 어떤 이유로 게스트 세션이 없는 경우를 대비한 안전망
+     const { error } = await supabase.auth.signInAnonymously();
+     if (error) {
+       showToast("세션 생성에 실패했습니다. 새로고침 후 다시 시도해주세요.", "error");
+       return;
+     }
+   }
+
+   if (partnerInfo.name?.trim() || partnerInfo.birth?.trim()) {
+     savePartnerInfoToStorage(partnerInfo);
+   }
+
+   await handleAnalyze();
+ };
+
+ // 결과 화면의 꼬리질문 버튼 클릭 핸들러 (게스트/익명은 회원가입 유도)
+ const handleAskFollowUp = (question: string) => {
+   if (!isRealUser) {
+     setShowGuestModal(true);
+     return;
+   }
+   setPendingPayment({ type: "followup", title: "심층 꼬리질문", payload: question });
+ };
+
+ // 결과 화면의 명식 수정 아코디언 "수정 완료 및 접기" 버튼 핸들러
+ const handleFinishEditingResultForm = () => {
+   setShowResultForm(false);
+   showToast("✅ 명식 정보가 수정되었습니다.\n원하시는 운세를 다시 선택하시면 수정된 정보로 분석됩니다!", "success");
+ };
+
  const handleAnalyze = async (options?: { skipFreeLimitCheck?: boolean; saveAsTicketRetry?: boolean }) => {
   if (!userInfo.name || !userInfo.birth) {
     alert("이름과 생년월일을 정확히 입력해주세요!");
@@ -1091,7 +1187,7 @@ const handlePremiumClick = async () => {
 };
 
   const handlePendingPaymentConfirm = async () => {
-    if (!pendingPayment || !user) return;
+    if (!pendingPayment || !isRealUser) return;
     if (isAnyActionLoading) return;
 
     setLoadingAction("pending");
@@ -1151,6 +1247,23 @@ const handlePremiumClick = async () => {
     setShowSajuDashboard(true);
   };
 
+  // 프리미엄 사주 버튼 클릭 핸들러 (명식 입력 여부 확인 후 비회원/회원 분기)
+  const handlePremiumMenuClick = () => {
+    if (isAnyActionLoading) return;
+    if (!userInfo.name || !userInfo.birth) {
+      alert("먼저 상단에 사주 명식을 입력해주세요!");
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    if (!isRealUser) {
+      setShowGuestModal(true);
+    } else {
+      // 🌟 [핵심 변경] 기존 모달 대신, 2000P짜리 결제 장바구니에 담습니다!
+      setPendingPayment({ type: "premium", title: "프리미엄 인생 마스터플랜", payload: null });
+    }
+  };
+
   const handleFortuneMenuClick = (item: FortuneMenuItem) => {
     if (isAnyActionLoading) return;
 
@@ -1159,7 +1272,7 @@ const handlePremiumClick = async () => {
       return;
     }
 
-    if (!user) {
+    if (!isRealUser) {
       setShowGuestModal(true);
       return;
     }
@@ -1168,7 +1281,7 @@ const handlePremiumClick = async () => {
   };
 
   const handleDashboardMenuSelect = (menuTitle: string) => {
-    if (!user) {
+    if (!isRealUser) {
       setShowGuestModal(true);
       return;
     }
@@ -1217,7 +1330,7 @@ const handlePremiumClick = async () => {
           <span className="text-[10px] bg-[var(--brand-primary)]/20 text-[var(--brand-primary)] px-1.5 py-0.5 rounded border border-[var(--brand-primary)]/40 shrink-0">PRO</span>
         </div>
         
-        {user && (
+        {isRealUser && (
           <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 shrink-0">
             {/* 유저 이름 표시 */}
             <div className="text-xs text-[var(--text-muted)] hidden sm:block whitespace-nowrap">
@@ -1258,782 +1371,106 @@ const handlePremiumClick = async () => {
 
       <div className="max-w-md mx-auto pt-24 pb-20 px-5 flex flex-col min-h-screen justify-center relative z-10">
         
-        {/* 📋 [씬 1] 구글 간편 로그인 (온보딩) - 가독성 스케일업 버전 */}
-        {(step === "login" || step === "input") && (
-            <div className="space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-700 text-center">
-              
-              <div className="space-y-5 pt-6">
-                <div className="inline-flex items-center gap-2 bg-[var(--bg-hover)] border border-[var(--brand-primary)]/30 px-5 py-2.5 rounded-full">
-                  <Gift size={18} className="text-[var(--brand-primary)]" />
-                  <span className="text-sm font-bold text-[var(--brand-primary)]">매일 접속 시 '오늘의 종합사주' 1회 무료!</span>
-                </div>
-                
-                {/* 메인 타이틀 크기 대폭 확대 */}
-               {/* 메인 타이틀 줄바꿈 및 가독성 최적화 */}
-               <h1 className="text-3xl sm:text-4xl md:text-5xl font-light leading-snug text-[var(--text-body)] tracking-wide pt-2 break-keep">
-                  <span className="inline-block">나의 가장 궁금한 답</span><br />
-                  <span className="font-bold text-transparent bg-clip-text bg-gradient-to-r from-[var(--brand-primary)] via-[var(--brand-primary-hover)] to-[var(--brand-primary)] inline-block mt-2">사주에서 찾습니다</span>
-                </h1>
-                
-                {/* 서브 텍스트 크기 확대 */}
-                <p className="text-sm md:text-base text-[var(--text-muted)] leading-relaxed pt-3">
-                  복잡한 회원가입 없이 단 1초 만에 시작하세요.<br />
-                  지금 시작하면 심층 풀이용 <span className="text-[var(--brand-primary)] font-bold text-lg">스탠다드 패스 1장</span>을 드립니다.
-                </p>
-              </div>
+        {/* 📋 [씬 1] 랜딩페이지 대문 */}
+        {step === "login" && (
+          <LandingHero
+            isRealUser={isRealUser}
+            userName={user?.user_metadata?.name || null}
+            tenantTheme={tenantTheme}
+            onStartFree={handleStartFreeGuest}
+            onLogin={() => setShowLoginChoiceModal(true)}
+            onContinueAsUser={() => setStep("input")}
+            onLogout={handleLogout}
+          />
+        )}
 
-              {/* 구글 로그인 & 상태 감지 버튼 그룹 */}
-              <div className="flex flex-col items-center justify-center gap-5 mt-8 w-full z-10 relative">
-                {user ? (
-                  // [로그인 O] 로그인이 되어 있을 때 보이는 화면
-                  <div className="flex flex-col items-center gap-3 animate-in fade-in zoom-in duration-500">
-                    <div className="text-[var(--text-on-brand)] font-bold text-lg bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-soft)] px-6 py-3 rounded-xl shadow-[0_0_15px_rgba(212,175,55,0.4)]">
-                      ✨ {user.user_metadata?.name || "고객"}님, 환영합니다!
-                    </div>
-                    <button 
-                      onClick={handleLogout} 
-                      className="text-xs text-[var(--text-muted)] underline hover:text-[var(--text-body)] transition-colors"
-                    >
-                      다른 계정으로 로그인 (로그아웃)
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-3 w-full">
-                    {/* 카카오 로그인 버튼 */}
-                    <button
-                      onClick={handleKakaoLogin}
-                      disabled={isAnyActionLoading}
-                      className="w-full flex items-center justify-center gap-3 bg-[#FEE500] hover:bg-[#F4DC00] text-[#000000] text-lg font-bold py-4 rounded-xl transition-all shadow-[0_0_15px_rgba(254,229,0,0.15)] disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isLoading("kakao") ? (
-                        <span className="inline-flex items-center gap-2"><ButtonSpinner /> 처리 중...</span>
-                      ) : (
-                        <>
-                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M12 3C6.477 3 2 6.425 2 10.648c0 2.706 1.706 5.07 4.3 6.355-.26.965-1.01 3.76-1.04 3.882-.04.144.05.155.12.11 1.05-.67 4.12-2.82 4.12-2.82.82.16 1.66.25 2.5.25 5.523 0 10-3.425 10-7.648C22 6.425 17.523 3 12 3z" fill="#000000"/>
-                          </svg>
-                          <span>카카오로 1초 만에 시작</span>
-                        </>
-                      )}
-                    </button>
-
-                    {/* 구글 로그인 버튼 */}
-                    <button
-                      onClick={handleGoogleLogin}
-                      disabled={isAnyActionLoading}
-                      className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-100 text-gray-800 text-lg font-bold py-4 rounded-xl transition-all shadow-[0_0_15px_rgba(255,255,255,0.15)] disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isLoading("google") ? (
-                        <span className="inline-flex items-center gap-2"><ButtonSpinner /> 처리 중...</span>
-                      ) : (
-                        <>
-                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                          </svg>
-                          <span>Google 계정으로 시작</span>
-                        </>
-                      )}
-                    </button>
-
-                    {/* 이메일 로그인 버튼 */}
-                    <button
-                      onClick={() => setShowEmailLoginModal(true)}
-                      className="w-full flex items-center justify-center gap-2 bg-[var(--bg-elevated)] hover:bg-[var(--bg-elevated-alt)] border border-[var(--brand-primary)]/50 hover:border-[var(--brand-primary)] text-[var(--brand-primary)] text-sm font-bold py-3.5 rounded-xl transition-all shadow-[0_0_10px_rgba(212,175,55,0.08)]"
-                    >
-                      <span>✉️</span>
-                      <span>이메일 계정으로 시작</span>
-                    </button>
-                  </div>
-                )}
-
-                {/* 안내선 */}
-                <div className="flex items-center justify-center gap-4 py-4 mt-2 w-full opacity-50">
-                  <div className="flex-1 h-px bg-gradient-to-r from-transparent to-[var(--border-default)]"></div>
-                  <span className="text-sm text-[var(--text-muted)] font-medium tracking-wide">사주 명식 입력</span>
-                  <div className="flex-1 h-px bg-gradient-to-l from-transparent to-[var(--border-default)]"></div>
-                </div>
-              </div>
-            </div>
-          )}
+        {showLoginChoiceModal && (
+          <LoginChoiceModal
+            onClose={() => setShowLoginChoiceModal(false)}
+            onKakao={handleKakaoLogin}
+            onGoogle={handleGoogleLogin}
+            onEmail={() => {
+              setShowLoginChoiceModal(false);
+              setShowEmailLoginModal(true);
+            }}
+            isKakaoLoading={isLoading("kakao")}
+            isGoogleLoading={isLoading("google")}
+            isAnyActionLoading={isAnyActionLoading}
+          />
+        )}
 
       {/* 📋 [씬 2] 디테일한 사주 정보 입력 폼 (숨김 해제 및 즉시 표시) */}
-      {(step === "login" || step === "input") && (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-500 mt-2">
-          {/* 입력 폼 배경 */}
-          <div className="bg-[var(--bg-surface)]/90 backdrop-blur-xl p-7 rounded-3xl border border-[var(--border-strong)]/60 shadow-2xl space-y-6 text-left relative z-20">
-            {/* 👇 새로 추가할 '내 명식 자동 입력' 버튼 👇 */}
-            {user && (
-              <div className="flex justify-end -mt-2 mb-2">
-                <button 
-                  type="button"
-                  onClick={fetchMySavedInfo}
-                  disabled={isLoading("myInfo")}
-                  className="flex items-center gap-1.5 bg-[var(--bg-elevated)] border border-[var(--brand-primary)]/60 text-[var(--brand-primary)] px-4 py-2 rounded-xl text-xs font-bold hover:bg-[var(--brand-primary)]/20 transition-all shadow-[0_0_10px_rgba(212,175,55,0.15)] disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {renderLoadingContent("myInfo", "✨ 내 사주 명식 자동 입력하기")}
-                </button>
-              </div>
-            )}
-            {/* 1. 성함 */}
-            <div>
-              <label className="block text-sm font-medium text-[var(--text-muted)] mb-2 ml-1">성함</label>
-              <input type="text" placeholder="예: 홍길동" value={userInfo.name}
-                onChange={(e) => setUserInfo({ ...userInfo, name: e.target.value })}
-                className="w-full bg-[var(--bg-base)] border border-[var(--border-default)] rounded-xl px-4 py-4 text-base text-[var(--text-body)] focus:outline-none focus:border-[var(--brand-primary)] transition-colors"
-              />
-            </div>
-
-            {/* 2. 성별 & 양력/음력 (그리드) */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-[var(--text-muted)] mb-2 ml-1">성별</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {["남", "여"].map((g) => (
-                    <button key={g} type="button" onClick={() => setUserInfo({ ...userInfo, gender: g === "남" ? "남자" : "여자" })}
-                      className={`py-3 rounded-xl text-sm font-bold border transition-all ${userInfo.gender === (g === "남" ? "남자" : "여자") ? "bg-[var(--brand-primary)]/20 border-[var(--brand-primary)] text-[var(--brand-primary-soft)]" : "bg-[var(--bg-base)] border-[var(--border-default)] text-[var(--text-muted)] hover:border-[var(--border-default)]"}`}>
-                      {g}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-[var(--text-muted)] mb-2 ml-1">양력/음력</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {["양력", "음력"].map((c) => (
-                    <button key={c} type="button" onClick={() => setUserInfo({ ...userInfo, calendarType: c })}
-                      className={`py-3 rounded-xl text-sm font-bold border transition-all ${userInfo.calendarType === c ? "bg-[var(--brand-primary)]/20 border-[var(--brand-primary)] text-[var(--brand-primary-soft)]" : "bg-[var(--bg-base)] border-[var(--border-default)] text-[var(--text-muted)] hover:border-[var(--border-default)]"}`}>
-                      {c}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* 3. 생년월일 */}
-            <div>
-              <label className="block text-sm font-medium text-[var(--text-muted)] mb-2 ml-1">생년월일 (6자리)</label>
-              <input type="number" placeholder="950505" value={userInfo.birth}
-                onChange={(e) => setUserInfo({ ...userInfo, birth: e.target.value })}
-                className="w-full bg-[var(--bg-base)] border border-[var(--border-default)] rounded-xl px-4 py-4 text-base text-[var(--text-body)] focus:outline-none focus:border-[var(--brand-primary)]"
-              />
-            </div>
-
-            {/* 4. 태어난 시간 */}
-            <div>
-              <label className="block text-sm font-medium text-[var(--text-muted)] mb-2 ml-1">태어난 시간</label>
-              <div className="grid grid-cols-2 gap-2 mb-3">
-                <button type="button" onClick={() => setUserInfo({ ...userInfo, isTimeKnown: false, hour: "99" })}
-                  className={`py-3 rounded-xl text-sm font-bold border transition-all ${!userInfo.isTimeKnown ? "bg-[var(--brand-primary)]/20 border-[var(--brand-primary)] text-[var(--brand-primary-soft)]" : "bg-[var(--bg-base)] border-[var(--border-default)] text-[var(--text-muted)]"}`}>
-                  ❔ 시간 모름
-                </button>
-                <button type="button" onClick={() => setUserInfo({ ...userInfo, isTimeKnown: true, hour: "12" })}
-                  className={`py-3 rounded-xl text-sm font-bold border transition-all ${userInfo.isTimeKnown ? "bg-[var(--brand-primary)]/20 border-[var(--brand-primary)] text-[var(--brand-primary-soft)]" : "bg-[var(--bg-base)] border-[var(--border-default)] text-[var(--text-muted)]"}`}>
-                  🕒 시간 입력
-                </button>
-              </div>
-              {/* 시간 입력칸 (시간을 안다고 선택했을 때만 보임) */}
-              {userInfo.isTimeKnown && (
-                <div className="grid grid-cols-2 gap-2 animate-in fade-in zoom-in-95">
-                  <select value={userInfo.hour} onChange={(e) => setUserInfo({ ...userInfo, hour: e.target.value })} className="w-full bg-[var(--bg-base)] border border-[var(--border-default)] rounded-xl px-2 py-3 text-[var(--text-body)]">
-                    {Array.from({ length: 24 }, (_, i) => i).map(h => <option key={h} value={h}>{h}시</option>)}
-                  </select>
-                  <select value={userInfo.min} onChange={(e) => setUserInfo({ ...userInfo, min: e.target.value })} className="w-full bg-[var(--bg-base)] border border-[var(--border-default)] rounded-xl px-2 py-3 text-[var(--text-body)]">
-                    {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')).map(m => <option key={m} value={m}>{m}분</option>)}
-                  </select>
-                </div>
-              )}
-            </div>
-
-            {/* 5. 결혼/자녀 유무 */}
-            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-[var(--border-default)]/50">
-              <div>
-                <label className="block text-sm font-medium text-[var(--text-muted)] mb-2 ml-1">결혼 유무</label>
-                <div className="grid grid-cols-3 gap-1">
-                  {["기혼", "연애", "싱글"].map((s) => (
-                    <button key={s} type="button" onClick={() => setUserInfo({ ...userInfo, maritalStatus: s })}
-                      className={`py-2 rounded-lg text-xs font-bold border transition-all ${userInfo.maritalStatus === s ? "bg-[var(--brand-primary)]/20 border-[var(--brand-primary)] text-[var(--brand-primary-soft)]" : "bg-[var(--bg-base)] border-[var(--border-default)] text-[var(--text-muted)]"}`}>
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-[var(--text-muted)] mb-2 ml-1">자녀 유무</label>
-                <div className="grid grid-cols-2 gap-1">
-                  {["있음", "없음"].map((k) => (
-                    <button key={k} type="button" onClick={() => setUserInfo({ ...userInfo, hasChildren: k })}
-                      className={`py-2 rounded-lg text-xs font-bold border transition-all ${userInfo.hasChildren === k ? "bg-[var(--brand-primary)]/20 border-[var(--brand-primary)] text-[var(--brand-primary-soft)]" : "bg-[var(--bg-base)] border-[var(--border-default)] text-[var(--text-muted)]"}`}>
-                      {k}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-{/* 6. 파트너 정보 입력 (추가) */}
-<div className="mt-6 p-4 bg-[var(--bg-muted)] rounded-xl border border-[var(--border-strong)]">
-              {/* 모바일 가독성을 위해 제목과 버튼을 위아래로 분리했습니다 */}
-              <div className="flex flex-col space-y-3 mb-4">
-                
-                {/* 라벨 (제목) */}
-                <label className="text-sm text-[var(--text-muted)] font-bold flex items-center">
-                  ❤️ 파트너/배우자 정보 <span className="text-xs text-[var(--text-muted)] font-normal ml-2">(선택 · 짝사랑, 썸, 재회 모두 가능)</span>
-                </label>
-                
-                {/* 버튼 그룹 (반반 꽉 차게 디자인) */}
-                <div className="flex flex-wrap gap-2 w-full">
-                  {user && (
-                    <button
-                      type="button"
-                      onClick={fetchPartnerSavedInfo}
-                      disabled={isLoading("partnerInfo")}
-                      className="flex-1 min-w-[calc(50%-0.25rem)] py-3 rounded-xl text-xs font-bold border border-[var(--text-muted)]/50 bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:bg-[var(--bg-elevated-alt)] hover:text-[var(--text-body)] transition-all shadow-sm flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {renderLoadingContent("partnerInfo", "✨ 자동 불러오기")}
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={handleSavePartnerInfo}
-                    className="flex-1 min-w-[calc(50%-0.25rem)] py-3 rounded-xl text-xs font-bold border border-[var(--brand-primary)]/50 bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/20 transition-all shadow-sm flex items-center justify-center gap-1"
-                  >
-                    💾 파트너 정보 저장
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => setShowPartner(!showPartner)}
-                    className={`flex-1 min-w-[calc(50%-0.25rem)] py-3 rounded-xl text-xs font-bold border transition-all shadow-sm flex items-center justify-center ${
-                      showPartner 
-                        ? "border-[var(--border-default)] bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]" 
-                        : "border-[var(--brand-primary)]/60 bg-[var(--brand-primary)]/15 text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/25"
-                    }`}
-                  >
-                    {showPartner ? "입력창 닫기" : "직접 입력하기"}
-                  </button>
-                </div>
-              </div>
-              
-              {showPartner && (
-  <div className="space-y-4 mt-4 animate-in slide-in-from-top-2 duration-300">
-    <input 
-  placeholder="파트너 성함" 
-  className="w-full bg-[var(--bg-base)] p-3 rounded-xl text-sm text-[var(--text-body)] border border-[var(--border-default)]"
-  value={partnerInfo.name}
-  onChange={(e) => setPartnerInfo({...partnerInfo, name: e.target.value})}
-/>
-    <div className="grid grid-cols-2 gap-2">
-      <button type="button" onClick={() => setPartnerInfo({...partnerInfo, gender: "남자"})}
-        className={`py-2 rounded-lg text-xs font-bold border ${partnerInfo.gender === "남자" ? "bg-[var(--brand-primary)]/20 border-[var(--brand-primary)]" : "bg-[var(--bg-base)] border-[var(--border-default)]"}`}>남자</button>
-      <button type="button" onClick={() => setPartnerInfo({...partnerInfo, gender: "여자"})}
-        className={`py-2 rounded-lg text-xs font-bold border ${partnerInfo.gender === "여자" ? "bg-[var(--brand-primary)]/20 border-[var(--brand-primary)]" : "bg-[var(--bg-base)] border-[var(--border-default)]"}`}>여자</button>
-    </div>
-    <div className="grid grid-cols-2 gap-2">
-      {["양력", "음력"].map((c) => (
-        <button
-          key={c}
-          type="button"
-          onClick={() => setPartnerInfo({ ...partnerInfo, calendarType: c })}
-          className={`py-2 rounded-lg text-xs font-bold border ${partnerInfo.calendarType === c ? "bg-[var(--brand-primary)]/20 border-[var(--brand-primary)] text-[var(--brand-primary-soft)]" : "bg-[var(--bg-base)] border-[var(--border-default)] text-[var(--text-muted)]"}`}
-        >
-          {c}
-        </button>
-      ))}
-    </div>
-    <input 
-  placeholder="생년월일 (6자리)" 
-  className="w-full bg-[var(--bg-base)] p-3 rounded-xl text-sm text-[var(--text-body)] border border-[var(--border-default)]"
-  value={partnerInfo.birth}
-  onChange={(e) => setPartnerInfo({...partnerInfo, birth: e.target.value})}
-/>
-    <div className="flex gap-2">
-      <button type="button" onClick={() => setPartnerInfo({...partnerInfo, isTimeKnown: false})}
-        className={`flex-1 py-2 rounded-lg text-xs border ${!partnerInfo.isTimeKnown ? "border-[var(--brand-primary)]" : "border-[var(--border-default)]"}`}>시간 모름</button>
-      <button type="button" onClick={() => setPartnerInfo({...partnerInfo, isTimeKnown: true})}
-        className={`flex-1 py-2 rounded-lg text-xs border ${partnerInfo.isTimeKnown ? "border-[var(--brand-primary)]" : "border-[var(--border-default)]"}`}>시간 입력</button>
-    </div>
-    {partnerInfo.isTimeKnown && (
-            <div className="grid grid-cols-2 gap-2 animate-in fade-in zoom-in-95 mt-2">
-              <select 
-                value={partnerInfo.hour} 
-                onChange={(e) => setPartnerInfo({...partnerInfo, hour: e.target.value})} 
-                className="w-full bg-[var(--bg-base)] border border-[var(--border-default)] rounded-xl px-2 py-3 text-[var(--text-body)] text-sm"
-              >
-                {Array.from({ length: 24 }, (_, i) => i).map(h => <option key={h} value={h}>{h}시</option>)}
-              </select>
-              <select 
-                value={partnerInfo.min} 
-                onChange={(e) => setPartnerInfo({...partnerInfo, min: e.target.value})} 
-                className="w-full bg-[var(--bg-base)] border border-[var(--border-default)] rounded-xl px-2 py-3 text-[var(--text-body)] text-sm"
-              >
-                {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')).map(m => <option key={m} value={m}>{m}분</option>)}
-              </select>
-            </div>
-          )}
-  </div>
-)}
-            </div>
-             {/* 개인정보 동의 체크박스 */}
-            <div className="flex items-center gap-2 mb-4 px-1">
-              <input 
-                type="checkbox" 
-                id="agree" 
-                checked={isAgreed}
-                onChange={(e) => setIsAgreed(e.target.checked)}
-                className="w-4 h-4 accent-[var(--brand-primary)]"
-              />
-              <label htmlFor="agree" className="text-xs text-[var(--text-muted)] cursor-pointer">
-                (필수) 개인정보 수집 및 이용에 동의합니다.
-              </label>
-            </div>
-            
-            {/* 분석 버튼 */}
-            <button 
-              disabled={hasUsedDailyFree || isLoading("analyze")}
-              onClick={async () => {
-                if (hasUsedDailyFree) {
-                  alert(FREE_SAJU_LIMIT_MESSAGE);
-                  return;
-                }
-                if (!isAgreed) {
-                  return alert("서비스 이용을 위해 개인정보 수집 및 이용에 동의해 주세요.");
-                }
-                if (!user) {
-                  setShowGuestModal(true);
-                  return; 
-                }
-
-                if (partnerInfo.name?.trim() || partnerInfo.birth?.trim()) {
-                  savePartnerInfoToStorage(partnerInfo);
-                }
-
-                await handleAnalyze();
-              }}
-              className={`w-full py-4 bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-hover)] text-[var(--text-on-brand)] font-extrabold rounded-2xl text-lg shadow-[0_0_20px_rgba(212,175,55,0.4)] transition-all flex items-center justify-center gap-2 ${
-                hasUsedDailyFree || isLoading("analyze") ? "opacity-50 cursor-not-allowed" : "hover:scale-[1.02]"
-              }`}
-            >
-              {hasUsedDailyFree ? (
-                <>오늘 조회 완료</>
-              ) : isLoading("analyze") ? (
-                <span className="inline-flex items-center gap-2"><ButtonSpinner /> 처리 중...</span>
-              ) : (
-                <>오늘의 사주 무료보기 ✨</>
-              )}
-            </button>
-          </div>
-        </div>
+      {step === "input" && (
+        <SajuInputForm
+          user={user}
+          userInfo={userInfo}
+          setUserInfo={setUserInfo}
+          partnerInfo={partnerInfo}
+          setPartnerInfo={setPartnerInfo}
+          showPartner={showPartner}
+          setShowPartner={setShowPartner}
+          isAgreed={isAgreed}
+          setIsAgreed={setIsAgreed}
+          hasUsedDailyFree={hasUsedDailyFree}
+          isMyInfoLoading={isLoading("myInfo")}
+          isPartnerInfoLoading={isLoading("partnerInfo")}
+          isAnalyzeLoading={isLoading("analyze")}
+          onFetchMySavedInfo={fetchMySavedInfo}
+          onFetchPartnerSavedInfo={fetchPartnerSavedInfo}
+          onSavePartnerInfo={handleSavePartnerInfo}
+          onAnalyze={handleFreeAnalyzeClick}
+        />
       )}
 
         {/* 🎬 [씬 3] 로딩 애니메이션 */}
         {step === "analyzing" && (
-          <div className="flex flex-col items-center justify-center space-y-8 h-[50vh] animate-in fade-in duration-500 text-center">
-            <div className="relative w-28 h-28 flex items-center justify-center">
-              <div className="absolute inset-0 border border-[var(--brand-primary)]/30 rounded-full animate-orbit">
-                <div className="absolute -top-1 left-1/2 w-2.5 h-2.5 bg-[var(--brand-primary)] rounded-full shadow-[0_0_10px_var(--brand-primary)]"></div>
-              </div>
-              <div className="absolute inset-3 border border-[#6b3eb0]/40 rounded-full animate-orbit" style={{ animationDirection: 'reverse', animationDuration: '15s' }}></div>
-              <Compass size={36} className="text-[var(--brand-primary)] animate-pulse" />
-            </div>
-            
-            {/* 로딩 텍스트 */}
-            <p className="text-[var(--brand-primary)] text-sm tracking-wide animate-pulse px-4 leading-relaxed font-light whitespace-pre-wrap">
-              {loadingText}
-            </p>
-            
-            {/* 🌟 새로 추가한 버튼 */}
-            <button 
-              onClick={() => {
-                alert("분석이 진행 중입니다.\n완료되면 '사주 보관함'에서 바로 확인하실 수 있어요!");
-                setStep("result"); // 로딩 화면에서 바로 메인 결과 화면으로 전환
-              }}
-              className="mt-6 px-6 py-2.5 text-xs text-[var(--text-muted)] border border-[var(--text-muted)]/50 rounded-full hover:bg-[var(--text-muted)]/10 hover:text-[var(--text-body)] transition-all"
-            >
-              사주 보관함에서 나중에 결과보기 ✨
-            </button>
-          </div>
+          <AnalyzingScreen
+            tenantTheme={tenantTheme}
+            loadingText={loadingText}
+            onViewLater={() => {
+              alert("분석이 진행 중입니다.\n완료되면 '사주 보관함'에서 바로 확인하실 수 있어요!");
+              setStep("result"); // 로딩 화면에서 바로 메인 결과 화면으로 전환
+            }}
+          />
         )}
 
         {/* 🎬 [씬 4] 오늘의 무료 사주 & 관심분야 꼬리질문 (핵심 도파민 루프) */}
         {step === "result" && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
-            
-            {/* 1. 오늘의 무료 종합 사주 리포트 (미끼 투척) */}
-            <div className="bg-gradient-to-br from-[var(--bg-elevated)] to-[#0d051c] p-6 rounded-3xl border-2 border-[var(--brand-primary)]/50 shadow-[0_0_30px_rgba(212,175,55,0.15)] relative overflow-hidden">
-              <div className="absolute top-0 right-0 bg-[var(--brand-primary)] text-[var(--text-on-brand)] text-[10px] font-extrabold px-3 py-1 rounded-bl-xl uppercase tracking-wider">
-                당신의 운세
-              </div>
-              
-              <div className="flex items-center gap-2 mb-3">
-                <Sparkles className="text-[var(--brand-primary)]" size={18} />
-                <h3 className="text-base font-bold text-[var(--text-body)]">
-  {userInfo.name}님의 <span className="text-[var(--brand-primary)]">오늘</span> 운세
-</h3>
-              </div>
-              
-              <div className="text-[var(--text-muted)] text-base md:text-lg leading-relaxed tracking-wide mb-6 whitespace-pre-wrap">
-        {sajuResultText.replaceAll("**", "")}
-      </div>
-
-      {/* --- 꼬리질문 UI 시작 --- */}
-      <div className="mt-8 pt-6 border-t border-[var(--border-default)]/50 animate-in fade-in slide-in-from-bottom-4 duration-700 mb-6">
-              
-              {/* 1. 최초 상태 (결과가 없을 때 상단에 표시) */}
-              {!followUpResult && !isFollowUpLoading && (
-                <>
-                  <h4 className="text-[var(--brand-primary-soft)] text-sm font-bold mb-4 flex items-center gap-2">
-                    ✨ 더 궁금한 내용이 있나요?
-                  </h4>
-                  <div className="flex flex-wrap gap-3 mb-4">
-                    {suggestedQuestions.map((q, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => {
-                          if (isAnyActionLoading || isFollowUpLoading) return;
-                          if (!user) {
-                            setShowGuestModal(true);
-                            return;
-                          }
-                          setPendingPayment({ type: "followup", title: "심층 꼬리질문", payload: q });
-                        }}
-                        disabled={isAnyActionLoading || isFollowUpLoading}
-                        className="bg-[var(--bg-muted)] border border-[var(--border-strong)] hover:border-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/10 text-[var(--text-muted)] hover:text-[var(--brand-primary-soft)] text-sm md:text-base font-medium px-4 py-3.5 rounded-2xl transition-all text-left leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {q}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-
-              {/* 2. 로딩 애니메이션 */}
-              {isFollowUpLoading && (
-                <div className="text-center py-6 bg-[var(--bg-base)]/50 rounded-xl border border-[var(--border-default)]/30">
-                  <div className="animate-spin w-6 h-6 border-2 border-[var(--brand-primary)] border-t-transparent rounded-full mx-auto mb-3"></div>
-                  <p className="text-xs text-[var(--text-muted)]">명리학자가 {userInfo.name}님의 질문을 분석하고 있습니다...</p>
-                </div>
-              )}
-              
-              {/* 3. 추가 질문 결과 창 & 새로운 꼬리질문 버튼 */}
-              {followUpResult && !isFollowUpLoading && (
-                <div className="bg-[var(--bg-base)] border border-[var(--brand-primary)]/40 rounded-xl p-5 shadow-[0_0_15px_rgba(212,175,55,0.1)] animate-in fade-in zoom-in-95">
-                  <p className="text-xs font-bold text-[var(--brand-primary)] mb-3 pb-2 border-b border-[var(--brand-primary)]/20">💡 {selectedQuestion}</p>
-                  <div className="text-[var(--text-muted)] text-base md:text-lg leading-relaxed tracking-wide whitespace-pre-wrap">
-                    {followUpResult}
-                  </div>
-                  
-                  {/* 👇 새로 생성된 버튼들이 결과창 맨 밑에 뜹니다! 👇 */}
-                  <div className="mt-6 pt-4 border-t border-[var(--brand-primary)]/20">
-                    <p className="text-[var(--brand-primary-soft)] text-sm font-bold mb-3 flex items-center gap-2">
-                      ✨ 다음은 무엇이 궁금하신가요?
-                    </p>
-                    <div className="flex flex-wrap gap-3">
-                      {suggestedQuestions.map((q, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => {
-                            if (!user) {
-                              setShowGuestModal(true);
-                              return;
-                            }
-                            // 꼬리질문 결제 대기열에 올림 (300P)
-                            setPendingPayment({ type: "followup", title: "심층 꼬리질문", payload: q });
-                          }}
-                          className="bg-[var(--bg-muted)] border border-[var(--border-strong)] hover:border-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/10 text-[var(--text-muted)] hover:text-[var(--brand-primary-soft)] text-sm md:text-base font-medium px-4 py-3.5 rounded-2xl transition-all text-left leading-relaxed"
-                        >
-                          {q}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-            {/* --- 꼬리질문 UI 끝 --- */}
-
-              <div className="bg-[var(--bg-base)]/80 rounded-xl p-3 border border-[var(--border-default)] flex items-center justify-between text-xs text-[var(--text-muted)]">
-                <span>✨ 내일 밤 12시 무료 사주 1회 갱신</span>
-                <span className="text-[var(--brand-primary)] font-bold flex items-center gap-1"><CheckCircle2 size={12}/> 출석 완료</span>
-              </div>
-            </div>
-{/* 📝 명식 확인/수정 아코디언 (접이식) */}
-<div className="bg-[var(--bg-surface)]/80 border border-[var(--border-default)] rounded-2xl overflow-hidden shadow-lg mt-4">
-              {/* 토글 버튼 */}
-              <button
-                onClick={() => setShowResultForm(!showResultForm)}
-                className="w-full flex justify-between items-center p-4 hover:bg-[var(--bg-hover)] transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-base">📝</span>
-                  <span className="text-sm font-bold text-[var(--text-muted)]">내 사주 명식 확인 및 수정</span>
-                </div>
-                <span className="text-[var(--brand-primary)] text-xs font-bold bg-[var(--brand-primary)]/10 border border-[var(--brand-primary)]/30 px-3 py-1.5 rounded-full transition-all">
-                  {showResultForm ? "접어두기 ▲" : "열어보기 ▼"}
-                </span>
-              </button>
-
-              {/* 열렸을 때 보이는 입력 폼 (메인 입력창과 동일하게 구성) */}
-              {showResultForm && (
-                <div className="p-6 border-t border-[var(--border-default)] bg-[var(--bg-surface)]/90 space-y-6 animate-in slide-in-from-top-2">
-                  
-                  {/* ✨ 내 명식 자동 입력 버튼 */}
-                  {user && (
-                    <button 
-                      type="button"
-                      onClick={fetchMySavedInfo}
-                      disabled={isLoading("myInfo")}
-                      className="w-full flex items-center justify-center gap-2 bg-[var(--bg-elevated)] border border-[var(--brand-primary)]/60 text-[var(--brand-primary)] px-4 py-3 rounded-xl text-sm font-bold hover:bg-[var(--brand-primary)]/20 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {renderLoadingContent("myInfo", "✨ 내 사주 명식 자동 입력하기")}
-                    </button>
-                  )}
-
-                  {/* 성함 */}
-                  <div>
-                    <label className="block text-sm font-medium text-[var(--text-muted)] mb-2">성함</label>
-                    <input type="text" value={userInfo.name} onChange={(e) => setUserInfo({ ...userInfo, name: e.target.value })} className="w-full bg-[var(--bg-base)] border border-[var(--border-default)] rounded-xl px-4 py-3 text-[var(--text-body)] text-sm focus:border-[var(--brand-primary)] outline-none" />
-                  </div>
-
-                  {/* 성별 & 양음력 */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-[var(--text-muted)] mb-2">성별</label>
-                      <div className="flex bg-[var(--bg-base)] p-1 rounded-xl border border-[var(--border-default)]">
-                        {["남자", "여자"].map(g => (
-                          <button key={g} onClick={() => setUserInfo({ ...userInfo, gender: g })} className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${userInfo.gender === g ? "bg-[var(--brand-primary)] text-[var(--text-on-brand)]" : "text-[var(--text-muted)]"}`}>{g}</button>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-[var(--text-muted)] mb-2">양력/음력</label>
-                      <div className="flex bg-[var(--bg-base)] p-1 rounded-xl border border-[var(--border-default)]">
-                        {["양력", "음력"].map(c => (
-                          <button key={c} onClick={() => setUserInfo({ ...userInfo, calendarType: c })} className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${userInfo.calendarType === c ? "bg-[var(--brand-primary)] text-[var(--text-on-brand)]" : "text-[var(--text-muted)]"}`}>{c}</button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 생년월일 */}
-                  <div>
-                    <label className="block text-sm font-medium text-[var(--text-muted)] mb-2">생년월일(6자리)</label>
-                    <input type="number" value={userInfo.birth} onChange={(e) => setUserInfo({ ...userInfo, birth: e.target.value })} className="w-full bg-[var(--bg-base)] border border-[var(--border-default)] rounded-xl px-4 py-3 text-[var(--text-body)] text-sm focus:border-[var(--brand-primary)] outline-none" />
-                  </div>
-
-                  {/* 태어난 시간 */}
-                  <div>
-                    <label className="block text-sm font-medium text-[var(--text-muted)] mb-2">태어난 시간</label>
-                    <div className="grid grid-cols-2 gap-3 mb-3">
-                      <button onClick={() => setUserInfo({ ...userInfo, isTimeKnown: false })} className={`py-3 rounded-xl text-sm font-bold border transition-all ${!userInfo.isTimeKnown ? "bg-[var(--brand-primary)]/20 border-[var(--brand-primary)] text-[var(--brand-primary-soft)]" : "bg-[var(--bg-base)] border-[var(--border-default)] text-[var(--text-muted)]"}`}>? 시간 모름</button>
-                      <button onClick={() => setUserInfo({ ...userInfo, isTimeKnown: true })} className={`py-3 rounded-xl text-sm font-bold border transition-all ${userInfo.isTimeKnown ? "bg-[var(--brand-primary)]/20 border-[var(--brand-primary)] text-[var(--brand-primary-soft)]" : "bg-[var(--bg-base)] border-[var(--border-default)] text-[var(--text-muted)]"}`}>🕒 시간 입력</button>
-                    </div>
-                    {userInfo.isTimeKnown && (
-                      <div className="grid grid-cols-2 gap-3">
-                        <select value={userInfo.hour} onChange={(e) => setUserInfo({ ...userInfo, hour: e.target.value })} className="bg-[var(--bg-base)] border border-[var(--border-default)] rounded-xl px-4 py-3 text-[var(--text-body)] text-sm outline-none">{Array.from({ length: 24 }, (_, i) => <option key={i} value={i}>{i}시</option>)}</select>
-                        <select value={userInfo.min} onChange={(e) => setUserInfo({ ...userInfo, min: e.target.value })} className="bg-[var(--bg-base)] border border-[var(--border-default)] rounded-xl px-4 py-3 text-[var(--text-body)] text-sm outline-none">{Array.from({ length: 60 }, (_, i) => <option key={i} value={i}>{i}분</option>)}</select>
-                      </div>
-                    )}
-                  </div>
-                  {/* 결혼/자녀 유무 (수정 폼 추가) */}
-          <div className="grid grid-cols-2 gap-4 pt-2 border-t border-[var(--border-default)]/50">
-            <div>
-              <label className="block text-sm font-medium text-[var(--text-muted)] mb-2">결혼 유무</label>
-              <div className="grid grid-cols-3 gap-1">
-                {["기혼", "연애", "싱글"].map((s) => (
-                  <button key={s} type="button" onClick={() => setUserInfo({ ...userInfo, maritalStatus: s })}
-                    className={`py-2 rounded-lg text-xs font-bold border transition-all ${userInfo.maritalStatus === s ? "bg-[var(--brand-primary)] text-[var(--text-on-brand)]" : "bg-[var(--bg-base)] border-[var(--border-default)] text-[var(--text-muted)]"}`}>
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-[var(--text-muted)] mb-2">자녀 유무</label>
-              <div className="grid grid-cols-2 gap-1">
-                {["있음", "없음"].map((k) => (
-                  <button key={k} type="button" onClick={() => setUserInfo({ ...userInfo, hasChildren: k })}
-                    className={`py-2 rounded-lg text-xs font-bold border transition-all ${userInfo.hasChildren === k ? "bg-[var(--brand-primary)] text-[var(--text-on-brand)]" : "bg-[var(--bg-base)] border-[var(--border-default)] text-[var(--text-muted)]"}`}>
-                    {k}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-                  {/* 💖 접이식 폼 내부 파트너 정보 */}
-                  <div className="mt-6 pt-6 border-t border-[var(--border-default)]">
-                    <label className="block text-sm font-medium text-[var(--text-muted)] mb-4">❤️ 파트너/배우자 정보 (선택 · 짝사랑, 썸, 재회 모두 가능)</label>
-
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      <button
-                        type="button"
-                        onClick={fetchPartnerSavedInfo}
-                        disabled={isLoading("partnerInfo")}
-                        className="text-xs bg-[var(--bg-elevated)] border border-[var(--text-muted)]/50 text-[var(--text-muted)] px-3 py-1.5 rounded-lg hover:bg-[var(--bg-elevated-alt)] disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {renderLoadingContent("partnerInfo", "✨ 자동 불러오기")}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleSavePartnerInfo}
-                        className="text-xs bg-[var(--brand-primary)]/10 border border-[var(--brand-primary)]/50 text-[var(--brand-primary)] px-3 py-1.5 rounded-lg hover:bg-[var(--brand-primary)]/20"
-                      >
-                        💾 파트너 정보 저장
-                      </button>
-                    </div>
-
-                    <div className="space-y-4">
-                      <input 
-                        type="text" 
-                        placeholder="파트너 성함" 
-                        value={partnerInfo.name} 
-                        onChange={(e) => setPartnerInfo({...partnerInfo, name: e.target.value})}
-                        className="w-full bg-[var(--bg-base)] border border-[var(--border-default)] rounded-xl px-4 py-3 text-[var(--text-body)] text-sm" 
-                      />
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="flex bg-[var(--bg-base)] p-1 rounded-xl border border-[var(--border-default)]">
-                          {["남자", "여자"].map(g => (
-                            <button key={g} onClick={() => setPartnerInfo({...partnerInfo, gender: g})} className={`flex-1 py-2.5 rounded-lg text-sm font-bold ${partnerInfo.gender === g ? "bg-[var(--brand-primary)] text-[var(--text-on-brand)]" : "text-[var(--text-muted)]"}`}>{g}</button>
-                          ))}
-                        </div>
-                        <input 
-                          type="number" 
-                          placeholder="생년월일(6자리)" 
-                          value={partnerInfo.birth} 
-                          onChange={(e) => setPartnerInfo({...partnerInfo, birth: e.target.value})}
-                          className="w-full bg-[var(--bg-base)] border border-[var(--border-default)] rounded-xl px-4 py-3 text-[var(--text-body)] text-sm" 
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <button onClick={() => setPartnerInfo({...partnerInfo, isTimeKnown: false})} className={`py-3 rounded-xl text-sm font-bold border ${!partnerInfo.isTimeKnown ? "bg-[var(--brand-primary)]/20 border-[var(--brand-primary)] text-[var(--brand-primary-soft)]" : "bg-[var(--bg-base)] border-[var(--border-default)] text-[var(--text-muted)]"}`}>? 시간 모름</button>
-                        <button onClick={() => setPartnerInfo({...partnerInfo, isTimeKnown: true})} className={`py-3 rounded-xl text-sm font-bold border ${partnerInfo.isTimeKnown ? "bg-[var(--brand-primary)]/20 border-[var(--brand-primary)] text-[var(--brand-primary-soft)]" : "bg-[var(--bg-base)] border-[var(--border-default)] text-[var(--text-muted)]"}`}>🕒 시간 입력</button>
-                      </div>
-                      
-                      {partnerInfo.isTimeKnown && (
-                        <div className="grid grid-cols-2 gap-3">
-                          <select value={partnerInfo.hour} onChange={(e) => setPartnerInfo({...partnerInfo, hour: e.target.value})} className="bg-[var(--bg-base)] border border-[var(--border-default)] rounded-xl px-4 py-3 text-[var(--text-body)] text-sm">{Array.from({ length: 24 }, (_, i) => <option key={i} value={i}>{i}시</option>)}</select>
-                          <select value={partnerInfo.min} onChange={(e) => setPartnerInfo({...partnerInfo, min: e.target.value})} className="bg-[var(--bg-base)] border border-[var(--border-default)] rounded-xl px-4 py-3 text-[var(--text-body)] text-sm">{Array.from({ length: 60 }, (_, i) => <option key={i} value={i}>{i}분</option>)}</select>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  {/* 수정 완료 버튼 */}
-                  <button 
-                    onClick={() => {
-                      setShowResultForm(false);
-                      showToast("✅ 명식 정보가 수정되었습니다.\n원하시는 운세를 다시 선택하시면 수정된 정보로 분석됩니다!", "success");
-                    }} 
-                    className="w-full mt-4 py-4 bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-hover)] text-[var(--text-on-brand)] rounded-xl text-sm font-bold hover:shadow-[0_0_15px_rgba(212,175,55,0.3)] transition-all"
-                  >
-                    수정 완료 및 접기
-                  </button>
-                </div>
-              )}
-            </div>
-            {/* 👇 1. 여기서 기존 결과창 뚜껑을 닫아줍니다 (제일 중요한 부분!) */}
-          </div>
+          <ResultScreen
+            tenantTheme={tenantTheme}
+            user={user}
+            userInfo={userInfo}
+            setUserInfo={setUserInfo}
+            partnerInfo={partnerInfo}
+            setPartnerInfo={setPartnerInfo}
+            sajuResultText={sajuResultText}
+            followUpResult={followUpResult}
+            isFollowUpLoading={isFollowUpLoading}
+            suggestedQuestions={suggestedQuestions}
+            selectedQuestion={selectedQuestion}
+            isAnyActionLoading={isAnyActionLoading}
+            onAskFollowUp={handleAskFollowUp}
+            showResultForm={showResultForm}
+            setShowResultForm={setShowResultForm}
+            isMyInfoLoading={isLoading("myInfo")}
+            isPartnerInfoLoading={isLoading("partnerInfo")}
+            onFetchMySavedInfo={fetchMySavedInfo}
+            onFetchPartnerSavedInfo={fetchPartnerSavedInfo}
+            onSavePartnerInfo={handleSavePartnerInfo}
+            onFinishEditing={handleFinishEditingResultForm}
+          />
         )}
 
         {/* ---------------------------------------------------- */}
         {/* 👇 2. 로딩 중만 아니면 무조건 보여주는 새로운 조건 시작 (쇼윈도 전략) */}
         {step !== "analyzing" && (
-          <div className="mt-12 space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700 relative z-10 pb-10">
-            <div className="text-center">
-              <h3 className="text-xl font-bold text-[var(--text-body)] mb-6">지금 궁금한 운세를 선택하세요</h3>
-
-              {/* 📊 무료 만세력 대형 버튼 */}
-              <div className="mb-4 relative z-20">
-                <button
-                  type="button"
-                  onClick={handleOpenFreeManseryeok}
-                  disabled={isAnyActionLoading}
-                  className="w-full bg-gradient-to-r from-[var(--bg-muted)] to-[var(--bg-elevated-alt)] border-2 border-red-500/50 p-6 rounded-3xl text-left relative z-20 overflow-hidden group hover:border-red-400 transition-all cursor-pointer shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <div className="absolute top-0 right-0 bg-red-500 text-white font-extrabold text-[10px] px-3 py-1 rounded-bl-xl z-30">
-                    🎁 무료
-                  </div>
-                  <div className="flex items-center gap-3 relative z-30 pr-16">
-                    <div className="text-3xl">📊</div>
-                    <div>
-                      <div className="text-[var(--text-body)] font-bold text-lg">내 사주 명식표 무료로 바로 보기</div>
-                      <div className="text-[var(--text-muted)] text-xs mt-1">
-                        나의 타고난 오행, 십성, 대운/세운의 흐름을 전문가용 차트로 한눈에 확인하세요.
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              </div>
-              
-              {/* 👑 프리미엄 사주 버튼 (비회원/회원 분기 처리 완료) */}
-              <div className="mb-6 relative z-20">
-                <button
-                 onClick={() => {
-                  if (isAnyActionLoading) return;
-                  if (!userInfo.name || !userInfo.birth) {
-                    alert("먼저 상단에 사주 명식을 입력해주세요!");
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                    return;
-                  }
-                  
-                  if (!user) {
-                    setShowGuestModal(true); 
-                  } else {
-                    // 🌟 [핵심 변경] 기존 모달 대신, 2000P짜리 결제 장바구니에 담습니다!
-                    setPendingPayment({ type: "premium", title: "프리미엄 인생 마스터플랜", payload: null });
-                  }
-                }}
-                  className="w-full bg-gradient-to-r from-[var(--border-strong)] to-[var(--bg-muted)] border-2 border-[var(--brand-primary)] p-6 rounded-3xl text-left relative z-20 overflow-hidden group hover:border-[var(--brand-primary-soft)] transition-all cursor-pointer shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={isAnyActionLoading}
-                >
-                  <div className="absolute top-0 right-0 bg-[var(--brand-primary)] text-[var(--text-on-brand)] font-extrabold text-[10px] px-3 py-1 rounded-bl-xl z-30">BEST</div>
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 bg-[var(--bg-elevated)] border border-[var(--brand-primary)]/50 px-2 py-0.5 rounded-md shadow-sm z-30">
-                    <span className="text-[10px] font-bold text-[var(--brand-primary)]">👑 1장</span>
-                  </div>
-                  <div className="flex items-center gap-3 relative z-30 pr-16">
-                    <div className="text-3xl">👑</div>
-                    <div>
-                      <div className="text-[var(--text-body)] font-bold text-lg">프리미엄 총 사주운세</div>
-                      <div className="text-[var(--text-muted)] text-xs mt-1">인생 총평 + 재물/직업 + 연애/가족 + 건강/행운 프리미엄 정밀 분석</div>
-                    </div>
-                  </div>
-                </button>
-              </div>
-
-              {/* 운세 메뉴 그리드 (유료 테마) */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-                {FORTUNE_MENU_ITEMS.map((item) => (
-                  <button
-                    key={item.title}
-                    onClick={() => handleFortuneMenuClick(item)}
-                    disabled={isAnyActionLoading}
-                    className="p-3.5 sm:p-4 bg-[var(--bg-surface)]/50 border border-[var(--border-default)] rounded-2xl hover:bg-[var(--bg-hover)] hover:border-[var(--brand-primary)] transition-all text-left group shadow-lg flex flex-col justify-start relative disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <div className="absolute top-2 right-2 z-10">
-                      {item.isFree ? (
-                        <span className="text-[10px] font-bold text-white bg-red-500/80 px-2 py-0.5 rounded-md shadow-sm">
-                          🎁 무료
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-bold text-[var(--brand-primary)] bg-[var(--bg-elevated)] border border-[var(--brand-primary)]/50 px-2 py-0.5 rounded-md shadow-sm">
-                          🎟️ 1장
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="text-2xl mb-2 sm:mb-2.5 relative z-10">{item.icon}</div>
-                    <div className="font-bold text-[var(--text-body)] group-hover:text-[var(--brand-primary)] text-[13px] sm:text-sm md:text-base break-keep leading-snug relative z-10">
-                      {item.title}
-                    </div>
-                    <div className="text-[10px] sm:text-[11px] md:text-xs text-[var(--text-muted)] mt-1 sm:mt-1.5 break-keep leading-tight relative z-10">
-                      {item.desc}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
+          <FortuneMenuSection
+            fortuneMenuItems={FORTUNE_MENU_ITEMS}
+            isAnyActionLoading={isAnyActionLoading}
+            onOpenFreeManseryeok={handleOpenFreeManseryeok}
+            onPremiumClick={handlePremiumMenuClick}
+            onFortuneMenuClick={handleFortuneMenuClick}
+          />
         )}
 
       </div>
@@ -2235,10 +1672,10 @@ const handlePremiumClick = async () => {
               <div className="inline-block bg-[var(--brand-primary)]/20 p-3 rounded-full mb-3">
                 <Gift size={32} className="text-[var(--brand-primary)]" />
               </div>
-              <h3 className="text-xl font-bold text-[var(--text-body)] mb-2">프리미엄 운세 잠금 해제</h3>
+              <h3 className="text-xl font-bold text-[var(--text-body)] mb-2">회원가입하고 더 알아보기</h3>
               <p className="text-sm text-[var(--text-muted)] leading-relaxed">
-                3초 만에 로그인하고 심층 분석용<br/>
-                <span className="text-[var(--brand-primary)] font-bold text-base">스탠다드 패스 1장</span>을 즉시 받아보세요!
+                회원가입을 하시면 더 자세한 내용을 보실 수 있습니다.<br/>
+                지금 가입하면 심층 분석용 <span className="text-[var(--brand-primary)] font-bold text-base">스탠다드 패스 1장</span>을 즉시 드려요!
               </p>
             </div>
             

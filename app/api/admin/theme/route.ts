@@ -61,8 +61,8 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const mode = body?.mode;
 
-    if (mode !== "dark" && mode !== "light") {
-      return NextResponse.json({ error: "mode는 dark 또는 light여야 합니다." }, { status: 400 });
+    if (mode !== "dark" && mode !== "light" && mode !== "character") {
+      return NextResponse.json({ error: "mode는 dark, light, character 중 하나여야 합니다." }, { status: 400 });
     }
 
     const tenantId = await getManagedTenantId();
@@ -70,10 +70,25 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "테넌트를 찾을 수 없습니다." }, { status: 404 });
     }
 
+    const updatePayload: Record<string, unknown> = { mode, updated_at: new Date().toISOString() };
+
+    // 캐릭터 이미지 URL은 선택 입력 — 넘어온 것만 갱신 (넘기지 않으면 기존 값 유지)
+    for (const key of ["characterHeroImageUrl", "characterLoadingImageUrl", "characterResultImageUrl"] as const) {
+      if (typeof body?.[key] === "string") {
+        const column =
+          key === "characterHeroImageUrl"
+            ? "character_hero_image_url"
+            : key === "characterLoadingImageUrl"
+              ? "character_loading_image_url"
+              : "character_result_image_url";
+        updatePayload[column] = body[key];
+      }
+    }
+
     const admin = createSupabaseAdmin();
     const { error } = await admin
       .from("tenant_themes")
-      .update({ mode, updated_at: new Date().toISOString() })
+      .update(updatePayload)
       .eq("tenant_id", tenantId);
 
     if (error) {
