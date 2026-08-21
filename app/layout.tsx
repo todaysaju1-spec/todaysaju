@@ -62,6 +62,7 @@ export default async function RootLayout({
     <html
       lang="en"
       data-theme={theme.mode}
+      data-hero-image={theme.characterHeroImageUrl || ""}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       style={
         {

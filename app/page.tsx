@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect, useLayoutEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Star, Gift } from "lucide-react";
 import { supabase } from "@/lib/supabase"; // Supabase 연동 클라이언트
@@ -19,6 +19,7 @@ import SajuInputForm from "@/components/screens/SajuInputForm";
 import AnalyzingScreen from "@/components/screens/AnalyzingScreen";
 import ResultScreen from "@/components/screens/ResultScreen";
 import FortuneMenuSection from "@/components/screens/FortuneMenuSection";
+import SplashScreen from "@/components/screens/SplashScreen";
 
 const PORTONE_STORE_ID = "store-252438e8-5d98-47ec-b2a6-e040643cf1a6";
 const PORTONE_CHANNEL_KEY = "channel-key-fd3937f3-b47f-4de6-9a08-16c085c44f46";
@@ -164,6 +165,20 @@ export default function TodaySajuLanding() {
   const [sajuResultText, setSajuResultText] = useState("");
   // 💡 [추가] 랜덤 별자리 데이터를 담을 state
 const [stars, setStars] = useState<any[]>([]);
+
+// 캐릭터 테마 전용 풀스크린 스플래시 노출 여부.
+// 서버 렌더링 시점엔 항상 false로 시작해서(하이드레이션 불일치 방지),
+// 클라이언트에서 마운트되자마자(paint 직전) app/layout.tsx가 SSR로 심어둔
+// <html data-theme>를 읽어 필요할 때만 켠다 — /api/theme fetch를 기다리지 않아 깜빡임이 없다.
+const [showSplash, setShowSplash] = useState(false);
+const [initialHeroImageUrl, setInitialHeroImageUrl] = useState("");
+
+useLayoutEffect(() => {
+  if (document.documentElement.getAttribute("data-theme") === "character") {
+    setInitialHeroImageUrl(document.documentElement.getAttribute("data-hero-image") || "");
+    setShowSplash(true);
+  }
+}, []);
 
 // 테넌트 테마(다크/라이트/캐릭터) — 캐릭터 모드일 때 이미지 URL을 표시하기 위해 조회
 const [tenantTheme, setTenantTheme] = useState<{
@@ -1298,6 +1313,13 @@ const handlePremiumClick = async () => {
   };
 
   const modalOverlayZ = showSajuDashboard ? "z-[120]" : "z-[100]";
+
+  if (showSplash) {
+    const heroImageUrl = tenantTheme?.characterHeroImageUrl || initialHeroImageUrl;
+    if (heroImageUrl) {
+      return <SplashScreen heroImageUrl={heroImageUrl} onEnter={() => setShowSplash(false)} />;
+    }
+  }
 
   return (
     <main className="min-h-screen relative overflow-hidden bg-[var(--bg-base)] text-[var(--text-body)] font-sans selection:bg-[var(--brand-primary)]/30">
