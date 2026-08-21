@@ -1,6 +1,6 @@
 "use client";
 
-import { Sparkles, CheckCircle2 } from "lucide-react";
+import { Sparkles, CheckCircle2, Share2 } from "lucide-react";
 import ButtonSpinner from "@/components/ButtonSpinner";
 import type { ClientTenantTheme } from "./types";
 
@@ -74,6 +74,41 @@ export default function ResultScreen({
   onSavePartnerInfo,
   onFinishEditing,
 }: ResultScreenProps) {
+  // 결과 텍스트의 첫 섹션에서 짧은 한 줄 티저를 뽑아 공유 문구로 쓴다
+  const extractTeaser = (text: string, maxLen = 50) => {
+    const cleaned = text.replaceAll("**", "").trim();
+    const afterHeading = cleaned.replace(/^\[[^\]]*\]\s*/, "");
+    const firstLine = (afterHeading.split("\n").find((l) => l.trim().length > 0) || afterHeading).trim();
+    return firstLine.length > maxLen ? `${firstLine.slice(0, maxLen)}...` : firstLine;
+  };
+
+  const handleShare = async () => {
+    if (!sajuResultText) return;
+    const teaser = extractTeaser(sajuResultText);
+    const shareText = `${userInfo.name || "제"}님의 오늘 총운: ${teaser}\n\n나도 무료로 오늘의 사주 보러가기 👉`;
+    const shareUrl = typeof window !== "undefined" ? window.location.origin : "https://todaysajupro.com";
+
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({ title: "오늘의사주", text: shareText, url: shareUrl });
+      } catch {
+        // 사용자가 공유를 취소한 경우 등 — 별도 처리 없이 무시
+      }
+      return;
+    }
+
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+        alert("공유 문구가 복사되었습니다!\n카카오톡이나 SNS에 붙여넣어 보세요 ✨");
+        return;
+      } catch {
+        // 클립보드 접근 실패 시 아래 alert로 폴백
+      }
+    }
+    alert(`${shareText}\n${shareUrl}`);
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
 
@@ -104,6 +139,15 @@ export default function ResultScreen({
         >
           {sajuResultText.replaceAll("**", "")}
         </div>
+
+        {/* 📤 결과 공유하기 */}
+        <button
+          onClick={handleShare}
+          className="w-full flex items-center justify-center gap-2 bg-[var(--bg-elevated)] hover:bg-[var(--bg-elevated-alt)] border border-[var(--brand-primary)]/40 text-[var(--brand-primary)] text-sm font-bold py-3 rounded-xl transition-all mb-2"
+        >
+          <Share2 size={16} />
+          내 운세 공유하기
+        </button>
 
         {/* --- 꼬리질문 UI 시작 --- */}
         <div className="mt-8 pt-6 border-t border-[var(--border-default)]/50 animate-in fade-in slide-in-from-bottom-4 duration-700 mb-6">
