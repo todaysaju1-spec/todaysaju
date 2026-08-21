@@ -68,24 +68,25 @@ body {
   background: #F7F8FA;
 }
 
-/* 캐릭터(꽃미남 명리사) 테마: 밝고 따뜻한 톤 — 크림/피치 배경 + 로즈골드 포인트 */
+/* 캐릭터(꽃미남 명리사) 테마: 히어로 이미지의 하늘색/먹색 동양화 톤에 맞춘 팔레트 —
+   차분한 미스트 블루 배경 + 짙은 남색 텍스트 + 골드 포인트(별자리·붉은 낙관과 어울리도록) */
 [data-theme="character"] {
-  --bg-base: #FFF6EE;
+  --bg-base: #EEF3F9;
   --bg-surface: #FFFFFF;
-  --bg-elevated: #FFEFE1;
-  --bg-muted: #FFE6D2;
-  --bg-elevated-alt: #FFDCC2;
-  --bg-hover: #FFE1CC;
-  --border-default: #F3D9C4;
-  --border-strong: #E8C4A6;
-  --text-body: #3A2E28;
-  --text-muted: #8A7566;
-  --brand-primary: #D97757;
-  --brand-primary-soft: #F0B79C;
-  --brand-primary-hover: #C15F41;
-  --text-on-brand: #FFFFFF;
+  --bg-elevated: #E3ECF5;
+  --bg-muted: #D7E3EF;
+  --bg-elevated-alt: #CBDCEA;
+  --bg-hover: #DEE9F3;
+  --border-default: #C5D7E6;
+  --border-strong: #A7C0D6;
+  --text-body: #223247;
+  --text-muted: #62778D;
+  --brand-primary: #C79A3D;
+  --brand-primary-soft: #E3C579;
+  --brand-primary-hover: #A87D2A;
+  --text-on-brand: #23180A;
 }
 
 [data-theme="character"] .cosmic-bg {
-  background: #FFF6EE;
+  background: #EEF3F9;
 }
