@@ -1,5 +1,7 @@
 "use client";
 
+import OrnateFrame from "./OrnateFrame";
+
 export type FortuneMenuItem = {
   icon: string;
   title: string;
@@ -10,6 +12,7 @@ export type FortuneMenuItem = {
 type FortuneMenuSectionProps = {
   fortuneMenuItems: FortuneMenuItem[];
   isAnyActionLoading: boolean;
+  isCharacterTheme?: boolean;
   onOpenFreeManseryeok: () => void;
   onPremiumClick: () => void;
   onFortuneMenuClick: (item: FortuneMenuItem) => void;
@@ -20,6 +23,7 @@ type FortuneMenuSectionProps = {
 export default function FortuneMenuSection({
   fortuneMenuItems,
   isAnyActionLoading,
+  isCharacterTheme,
   onOpenFreeManseryeok,
   onPremiumClick,
   onFortuneMenuClick,
@@ -30,7 +34,7 @@ export default function FortuneMenuSection({
         <h3 className="text-xl font-bold text-[var(--text-body)] mb-6">지금 궁금한 운세를 선택하세요</h3>
 
         {/* 📊 무료 만세력 대형 버튼 */}
-        <div className="mb-4 relative z-20">
+        <OrnateFrame active={isCharacterTheme} className="mb-4 z-20">
           <button
             type="button"
             onClick={onOpenFreeManseryeok}
@@ -50,10 +54,10 @@ export default function FortuneMenuSection({
               </div>
             </div>
           </button>
-        </div>
+        </OrnateFrame>
 
         {/* 👑 프리미엄 사주 버튼 (비회원/회원 분기 처리 완료) */}
-        <div className="mb-6 relative z-20">
+        <OrnateFrame active={isCharacterTheme} className="mb-6 z-20">
           <button
             onClick={onPremiumClick}
             className="w-full bg-gradient-to-r from-[var(--border-strong)] to-[var(--bg-muted)] border-2 border-[var(--brand-primary)] p-6 rounded-3xl text-left relative z-20 overflow-hidden group hover:border-[var(--brand-primary-soft)] transition-all cursor-pointer shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
@@ -71,37 +75,38 @@ export default function FortuneMenuSection({
               </div>
             </div>
           </button>
-        </div>
+        </OrnateFrame>
 
         {/* 운세 메뉴 그리드 (유료 테마) */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
           {fortuneMenuItems.map((item) => (
-            <button
-              key={item.title}
-              onClick={() => onFortuneMenuClick(item)}
-              disabled={isAnyActionLoading}
-              className="p-3.5 sm:p-4 bg-[var(--bg-surface)]/50 border border-[var(--border-default)] rounded-2xl hover:bg-[var(--bg-hover)] hover:border-[var(--brand-primary)] transition-all text-left group shadow-lg flex flex-col justify-start relative disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <div className="absolute top-2 right-2 z-10">
-                {item.isFree ? (
-                  <span className="text-[10px] font-bold text-white bg-red-500/80 px-2 py-0.5 rounded-md shadow-sm">
-                    🎁 무료
-                  </span>
-                ) : (
-                  <span className="text-[10px] font-bold text-[var(--brand-primary)] bg-[var(--bg-elevated)] border border-[var(--brand-primary)]/50 px-2 py-0.5 rounded-md shadow-sm">
-                    🎟️ 1장
-                  </span>
-                )}
-              </div>
+            <OrnateFrame key={item.title} active={isCharacterTheme} size="sm">
+              <button
+                onClick={() => onFortuneMenuClick(item)}
+                disabled={isAnyActionLoading}
+                className="w-full h-full p-3.5 sm:p-4 bg-[var(--bg-surface)]/50 border border-[var(--border-default)] rounded-2xl hover:bg-[var(--bg-hover)] hover:border-[var(--brand-primary)] transition-all text-left group shadow-lg flex flex-col justify-start relative disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <div className="absolute top-2 right-2 z-10">
+                  {item.isFree ? (
+                    <span className="text-[10px] font-bold text-white bg-red-500/80 px-2 py-0.5 rounded-md shadow-sm">
+                      🎁 무료
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold text-[var(--brand-primary)] bg-[var(--bg-elevated)] border border-[var(--brand-primary)]/50 px-2 py-0.5 rounded-md shadow-sm">
+                      🎟️ 1장
+                    </span>
+                  )}
+                </div>
 
-              <div className="text-2xl mb-2 sm:mb-2.5 relative z-10">{item.icon}</div>
-              <div className="font-bold text-[var(--text-body)] group-hover:text-[var(--brand-primary)] text-[13px] sm:text-sm md:text-base break-keep leading-snug relative z-10">
-                {item.title}
-              </div>
-              <div className="text-[10px] sm:text-[11px] md:text-xs text-[var(--text-muted)] mt-1 sm:mt-1.5 break-keep leading-tight relative z-10">
-                {item.desc}
-              </div>
-            </button>
+                <div className="text-2xl mb-2 sm:mb-2.5 relative z-10">{item.icon}</div>
+                <div className="font-bold text-[var(--text-body)] group-hover:text-[var(--brand-primary)] text-[13px] sm:text-sm md:text-base break-keep leading-snug relative z-10">
+                  {item.title}
+                </div>
+                <div className="text-[10px] sm:text-[11px] md:text-xs text-[var(--text-muted)] mt-1 sm:mt-1.5 break-keep leading-tight relative z-10">
+                  {item.desc}
+                </div>
+              </button>
+            </OrnateFrame>
           ))}
         </div>
       </div>

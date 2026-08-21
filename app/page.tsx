@@ -1445,6 +1445,7 @@ const handlePremiumClick = async () => {
           onFetchPartnerSavedInfo={fetchPartnerSavedInfo}
           onSavePartnerInfo={handleSavePartnerInfo}
           onAnalyze={handleFreeAnalyzeClick}
+          isCharacterTheme={tenantTheme?.mode === "character"}
         />
       )}
 
@@ -1493,6 +1494,7 @@ const handlePremiumClick = async () => {
           <FortuneMenuSection
             fortuneMenuItems={FORTUNE_MENU_ITEMS}
             isAnyActionLoading={isAnyActionLoading}
+            isCharacterTheme={tenantTheme?.mode === "character"}
             onOpenFreeManseryeok={handleOpenFreeManseryeok}
             onPremiumClick={handlePremiumMenuClick}
             onFortuneMenuClick={handleFortuneMenuClick}
