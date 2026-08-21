@@ -2,7 +2,6 @@
 
 import { Sparkles, CheckCircle2 } from "lucide-react";
 import ButtonSpinner from "@/components/ButtonSpinner";
-import OrnateFrame from "./OrnateFrame";
 import type { ClientTenantTheme } from "./types";
 
 type UserInfo = {
@@ -79,7 +78,6 @@ export default function ResultScreen({
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
 
       {/* 1. 오늘의 무료 종합 사주 리포트 (미끼 투척) */}
-      <OrnateFrame active={tenantTheme?.mode === "character"}>
       <div className="bg-gradient-to-br from-[var(--bg-elevated)] to-[var(--bg-base)] p-6 rounded-3xl border-2 border-[var(--brand-primary)]/50 shadow-[0_0_30px_rgba(212,175,55,0.15)] relative overflow-hidden">
         <div className="absolute top-0 right-0 bg-[var(--brand-primary)] text-[var(--text-on-brand)] text-[10px] font-extrabold px-3 py-1 rounded-bl-xl uppercase tracking-wider">
           당신의 운세
@@ -177,7 +175,6 @@ export default function ResultScreen({
           <span className="text-[var(--brand-primary)] font-bold flex items-center gap-1"><CheckCircle2 size={12} /> 출석 완료</span>
         </div>
       </div>
-      </OrnateFrame>
       {/* 📝 명식 확인/수정 아코디언 (접이식) */}
       <div className="bg-[var(--bg-surface)]/80 border border-[var(--border-default)] rounded-2xl overflow-hidden shadow-lg mt-4">
         {/* 토글 버튼 */}
