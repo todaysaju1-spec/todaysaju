@@ -16,11 +16,13 @@ export default function SplashScreen({ heroImageUrl, onEnter }: SplashScreenProp
       aria-label="지금 운세 보기"
       className="w-full min-h-screen flex items-center justify-center bg-[var(--bg-base)] cursor-pointer p-0 border-0"
     >
-      <img
-        src={heroImageUrl}
-        alt="오늘의사주 명리사 캐릭터 — 탭하여 시작하기"
-        className="w-full h-screen object-cover animate-in fade-in duration-700"
-      />
+      <div className="relative w-full h-screen max-w-md mx-auto overflow-hidden animate-in fade-in duration-700">
+        <img
+          src={heroImageUrl}
+          alt="오늘의사주 명리사 캐릭터 — 탭하여 시작하기"
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      </div>
     </button>
   );
 }

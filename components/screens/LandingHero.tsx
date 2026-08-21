@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { Gift } from "lucide-react";
 import type { ClientTenantTheme } from "./types";
 
@@ -16,7 +15,9 @@ type LandingHeroProps = {
 
 // 🎬 [씬 1] 랜딩페이지 대문 — 히어로 이미지/타이틀 + CTA.
 // 실제 계정으로 로그인된 상태면 버튼 한 번으로 바로 입력 화면으로 이동하고,
-// 그 외(비로그인/게스트)는 버튼을 누르면 "무료로 보기 / 로그인" 두 선택지가 나타난다.
+// 그 외(비로그인/게스트)는 "무료로 보기 / 로그인" 두 선택지를 바로 보여준다
+// (스플래시 화면에서 이미 한 번 탭하고 넘어온 뒤라, 여기서 또 "지금 운세 보기" 버튼을
+// 한 번 더 거치게 하면 같은 문구가 중복돼 어색하다).
 //
 // 캐릭터 테마의 히어로 이미지는 타이틀/부제/CTA 문구가 이미 이미지 안에 그려진
 // "완성된 포스터"라서, 다크/라이트처럼 별도 텍스트를 덧붙이지 않고 이미지 그대로
@@ -31,7 +32,6 @@ export default function LandingHero({
   onContinueAsUser,
   onLogout,
 }: LandingHeroProps) {
-  const [showChoice, setShowChoice] = useState(false);
   const isCharacterTheme = tenantTheme?.mode === "character" && !!tenantTheme.characterHeroImageUrl;
 
   const buttons = (
@@ -45,13 +45,6 @@ export default function LandingHero({
       {isRealUser ? (
         <button
           onClick={onContinueAsUser}
-          className="w-full sm:w-auto sm:px-16 py-4 bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-hover)] text-[var(--text-on-brand)] font-extrabold rounded-2xl text-lg shadow-[0_0_25px_rgba(212,175,55,0.35)] transition-all hover:scale-[1.02]"
-        >
-          지금 운세 보기
-        </button>
-      ) : !showChoice ? (
-        <button
-          onClick={() => setShowChoice(true)}
           className="w-full sm:w-auto sm:px-16 py-4 bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-hover)] text-[var(--text-on-brand)] font-extrabold rounded-2xl text-lg shadow-[0_0_25px_rgba(212,175,55,0.35)] transition-all hover:scale-[1.02]"
         >
           지금 운세 보기
