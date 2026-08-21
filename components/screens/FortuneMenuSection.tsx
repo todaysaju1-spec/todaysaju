@@ -10,20 +10,9 @@ export type FortuneMenuItem = {
 type FortuneMenuSectionProps = {
   fortuneMenuItems: FortuneMenuItem[];
   isAnyActionLoading: boolean;
-  isCharacterTheme?: boolean;
   onOpenFreeManseryeok: () => void;
   onPremiumClick: () => void;
   onFortuneMenuClick: (item: FortuneMenuItem) => void;
-};
-
-// 캐릭터 테마에서 일부 메뉴 카드는 이모지 대신 명리사 캐릭터 아바타를 보여준다
-// (준비된 아바타 5종에 해당하는 카테고리만 — 나머지는 그대로 이모지 아이콘 사용)
-const CATEGORY_AVATARS: Record<string, string> = {
-  "오늘의 운세": "/character/result-total.webp",
-  "금전/재물": "/character/result-money.webp",
-  "연애/가족": "/character/result-love.webp",
-  "직업운": "/character/result-job.webp",
-  "건강운": "/character/result-health.webp",
 };
 
 // 무료 만세력 + 프리미엄 사주 + 운세 메뉴 그리드.
@@ -31,7 +20,6 @@ const CATEGORY_AVATARS: Record<string, string> = {
 export default function FortuneMenuSection({
   fortuneMenuItems,
   isAnyActionLoading,
-  isCharacterTheme,
   onOpenFreeManseryeok,
   onPremiumClick,
   onFortuneMenuClick,
@@ -87,45 +75,34 @@ export default function FortuneMenuSection({
 
         {/* 운세 메뉴 그리드 (유료 테마) */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-          {fortuneMenuItems.map((item) => {
-            const avatarUrl = isCharacterTheme ? CATEGORY_AVATARS[item.title] : undefined;
-            return (
-              <button
-                key={item.title}
-                onClick={() => onFortuneMenuClick(item)}
-                disabled={isAnyActionLoading}
-                className="p-3.5 sm:p-4 bg-[var(--bg-surface)]/50 border border-[var(--border-default)] rounded-2xl hover:bg-[var(--bg-hover)] hover:border-[var(--brand-primary)] transition-all text-left group shadow-lg flex flex-col justify-start relative disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <div className="absolute top-2 right-2 z-10">
-                  {item.isFree ? (
-                    <span className="text-[10px] font-bold text-white bg-red-500/80 px-2 py-0.5 rounded-md shadow-sm">
-                      🎁 무료
-                    </span>
-                  ) : (
-                    <span className="text-[10px] font-bold text-[var(--brand-primary)] bg-[var(--bg-elevated)] border border-[var(--brand-primary)]/50 px-2 py-0.5 rounded-md shadow-sm">
-                      🎟️ 1장
-                    </span>
-                  )}
-                </div>
-
-                {avatarUrl ? (
-                  <img
-                    src={avatarUrl}
-                    alt={item.title}
-                    className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover border border-[var(--brand-primary)]/40 mb-2 sm:mb-2.5 relative z-10"
-                  />
+          {fortuneMenuItems.map((item) => (
+            <button
+              key={item.title}
+              onClick={() => onFortuneMenuClick(item)}
+              disabled={isAnyActionLoading}
+              className="p-3.5 sm:p-4 bg-[var(--bg-surface)]/50 border border-[var(--border-default)] rounded-2xl hover:bg-[var(--bg-hover)] hover:border-[var(--brand-primary)] transition-all text-left group shadow-lg flex flex-col justify-start relative disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <div className="absolute top-2 right-2 z-10">
+                {item.isFree ? (
+                  <span className="text-[10px] font-bold text-white bg-red-500/80 px-2 py-0.5 rounded-md shadow-sm">
+                    🎁 무료
+                  </span>
                 ) : (
-                  <div className="text-2xl mb-2 sm:mb-2.5 relative z-10">{item.icon}</div>
+                  <span className="text-[10px] font-bold text-[var(--brand-primary)] bg-[var(--bg-elevated)] border border-[var(--brand-primary)]/50 px-2 py-0.5 rounded-md shadow-sm">
+                    🎟️ 1장
+                  </span>
                 )}
-                <div className="font-bold text-[var(--text-body)] group-hover:text-[var(--brand-primary)] text-[13px] sm:text-sm md:text-base break-keep leading-snug relative z-10">
-                  {item.title}
-                </div>
-                <div className="text-[10px] sm:text-[11px] md:text-xs text-[var(--text-muted)] mt-1 sm:mt-1.5 break-keep leading-tight relative z-10">
-                  {item.desc}
-                </div>
-              </button>
-            );
-          })}
+              </div>
+
+              <div className="text-2xl mb-2 sm:mb-2.5 relative z-10">{item.icon}</div>
+              <div className="font-bold text-[var(--text-body)] group-hover:text-[var(--brand-primary)] text-[13px] sm:text-sm md:text-base break-keep leading-snug relative z-10">
+                {item.title}
+              </div>
+              <div className="text-[10px] sm:text-[11px] md:text-xs text-[var(--text-muted)] mt-1 sm:mt-1.5 break-keep leading-tight relative z-10">
+                {item.desc}
+              </div>
+            </button>
+          ))}
         </div>
       </div>
     </div>
