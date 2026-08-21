@@ -20,6 +20,7 @@ import AnalyzingScreen from "@/components/screens/AnalyzingScreen";
 import ResultScreen from "@/components/screens/ResultScreen";
 import FortuneMenuSection from "@/components/screens/FortuneMenuSection";
 import SplashScreen from "@/components/screens/SplashScreen";
+import MysticalSplash from "@/components/screens/MysticalSplash";
 
 const PORTONE_STORE_ID = "store-252438e8-5d98-47ec-b2a6-e040643cf1a6";
 const PORTONE_CHANNEL_KEY = "channel-key-fd3937f3-b47f-4de6-9a08-16c085c44f46";
@@ -166,17 +167,18 @@ export default function TodaySajuLanding() {
   // 💡 [추가] 랜덤 별자리 데이터를 담을 state
 const [stars, setStars] = useState<any[]>([]);
 
-// 캐릭터 테마 전용 풀스크린 스플래시 노출 여부.
-// 서버 렌더링 시점엔 항상 false로 시작해서(하이드레이션 불일치 방지),
+// 첫 진입 시 풀스크린 스플래시 노출 여부 (테마별로 다른 스플래시를 보여준다).
+// 서버 렌더링 시점엔 항상 null로 시작해서(하이드레이션 불일치 방지),
 // 클라이언트에서 마운트되자마자(paint 직전) app/layout.tsx가 SSR로 심어둔
 // <html data-theme>를 읽어 필요할 때만 켠다 — /api/theme fetch를 기다리지 않아 깜빡임이 없다.
-const [showSplash, setShowSplash] = useState(false);
+const [splashMode, setSplashMode] = useState<"dark" | "light" | "character" | null>(null);
 const [initialHeroImageUrl, setInitialHeroImageUrl] = useState("");
 
 useLayoutEffect(() => {
-  if (document.documentElement.getAttribute("data-theme") === "character") {
+  const mode = document.documentElement.getAttribute("data-theme");
+  if (mode === "dark" || mode === "light" || mode === "character") {
     setInitialHeroImageUrl(document.documentElement.getAttribute("data-hero-image") || "");
-    setShowSplash(true);
+    setSplashMode(mode);
   }
 }, []);
 
@@ -1314,11 +1316,13 @@ const handlePremiumClick = async () => {
 
   const modalOverlayZ = showSajuDashboard ? "z-[120]" : "z-[100]";
 
-  if (showSplash) {
+  if (splashMode === "character") {
     const heroImageUrl = tenantTheme?.characterHeroImageUrl || initialHeroImageUrl;
     if (heroImageUrl) {
-      return <SplashScreen heroImageUrl={heroImageUrl} onEnter={() => setShowSplash(false)} />;
+      return <SplashScreen heroImageUrl={heroImageUrl} onEnter={() => setSplashMode(null)} />;
     }
+  } else if (splashMode === "dark" || splashMode === "light") {
+    return <MysticalSplash variant={splashMode} onEnter={() => setSplashMode(null)} />;
   }
 
   return (
