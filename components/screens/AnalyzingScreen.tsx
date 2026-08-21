@@ -38,12 +38,14 @@ export default function AnalyzingScreen({ tenantTheme, loadingText, onViewLater 
   if (isCharacterTheme) {
     return (
       <div className="flex flex-col items-center justify-center space-y-6 animate-in fade-in duration-500 text-center">
-        <img
-          key={frameIndex}
-          src={CHARACTER_LOADING_FRAMES[frameIndex]}
-          alt="사주를 분석 중인 명리사 캐릭터"
-          className="w-full max-w-xs rounded-3xl object-cover shadow-[0_0_30px_rgba(217,119,87,0.25)] border border-[var(--border-default)] animate-in fade-in duration-500"
-        />
+        <div className="relative w-full max-w-xs aspect-[307/580] rounded-3xl overflow-hidden shadow-[0_0_30px_rgba(44,65,89,0.2)] border border-[var(--border-default)]">
+          <img
+            key={frameIndex}
+            src={CHARACTER_LOADING_FRAMES[frameIndex]}
+            alt="사주를 분석 중인 명리사 캐릭터"
+            className="absolute inset-0 w-full h-full object-cover animate-in fade-in duration-500"
+          />
+        </div>
         <button
           onClick={onViewLater}
           className="px-6 py-2.5 text-xs text-[var(--text-muted)] border border-[var(--text-muted)]/50 rounded-full hover:bg-[var(--text-muted)]/10 hover:text-[var(--text-body)] transition-all"

@@ -78,7 +78,7 @@ export default function ResultScreen({
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
 
       {/* 1. 오늘의 무료 종합 사주 리포트 (미끼 투척) */}
-      <div className="bg-gradient-to-br from-[var(--bg-elevated)] to-[#0d051c] p-6 rounded-3xl border-2 border-[var(--brand-primary)]/50 shadow-[0_0_30px_rgba(212,175,55,0.15)] relative overflow-hidden">
+      <div className="bg-gradient-to-br from-[var(--bg-elevated)] to-[var(--bg-base)] p-6 rounded-3xl border-2 border-[var(--brand-primary)]/50 shadow-[0_0_30px_rgba(212,175,55,0.15)] relative overflow-hidden">
         <div className="absolute top-0 right-0 bg-[var(--brand-primary)] text-[var(--text-on-brand)] text-[10px] font-extrabold px-3 py-1 rounded-bl-xl uppercase tracking-wider">
           당신의 운세
         </div>
@@ -98,7 +98,10 @@ export default function ResultScreen({
           </h3>
         </div>
 
-        <div className="text-[var(--text-muted)] text-base md:text-lg leading-relaxed tracking-wide mb-6 whitespace-pre-wrap">
+        <div
+          className="text-[var(--text-body)] text-lg md:text-xl leading-loose tracking-wide mb-6 whitespace-pre-wrap"
+          style={tenantTheme?.mode === "character" ? { fontFamily: "var(--font-noto-serif-kr), serif" } : undefined}
+        >
           {sajuResultText.replaceAll("**", "")}
         </div>
 
