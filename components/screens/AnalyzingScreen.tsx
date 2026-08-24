@@ -38,7 +38,7 @@ export default function AnalyzingScreen({ tenantTheme, loadingText, onViewLater 
   if (isCharacterTheme) {
     return (
       <div className="flex flex-col items-center justify-center space-y-6 animate-in fade-in duration-500 text-center">
-        <div className="relative w-full max-w-xs aspect-[307/580] rounded-3xl overflow-hidden shadow-[0_0_30px_rgba(44,65,89,0.2)] border border-[var(--border-default)]">
+        <div className="relative w-full max-w-xs aspect-[111/226] rounded-3xl overflow-hidden shadow-[0_0_30px_rgba(44,65,89,0.2)] border border-[var(--border-default)]">
           <img
             key={frameIndex}
             src={CHARACTER_LOADING_FRAMES[frameIndex]}
