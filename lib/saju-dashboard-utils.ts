@@ -46,58 +46,50 @@ export function calculateSajuFromUserInfo(userInfo: UserSajuFormInfo): SajuResul
 
 export type OhangKey = "목" | "화" | "토" | "금" | "수";
 
+// 오행별 색상은 테마(다크/라이트/캐릭터)에 따라 배경 밝기가 달라지므로,
+// 고정된 Tailwind 다크톤 클래스 대신 hex 값만 들고 getOhangStyle()에서
+// color-mix()로 현재 테마의 --bg-surface에 맞춰 매번 계산한다.
+// solidHex는 흰 글씨를 얹는 "강조(highlight)" 배지 전용 — 금(金)처럼
+// 밝은 색은 흰 글씨와 대비가 안 나와서 더 어두운 톤을 별도로 둔다.
 export const OHANG_THEME: Record<
   OhangKey,
   {
     label: string;
-    bg: string;
-    bgSoft: string;
-    text: string;
-    border: string;
+    hex: string;
+    solidHex: string;
     fill: string;
   }
 > = {
-  목: {
-    label: "木 목",
-    bg: "bg-emerald-600/90",
-    bgSoft: "bg-emerald-950/60",
-    text: "text-emerald-100",
-    border: "border-emerald-400/70",
-    fill: "#059669",
-  },
-  화: {
-    label: "火 화",
-    bg: "bg-red-600/90",
-    bgSoft: "bg-red-950/60",
-    text: "text-red-100",
-    border: "border-red-400/70",
-    fill: "#dc2626",
-  },
-  토: {
-    label: "土 토",
-    bg: "bg-amber-600/90",
-    bgSoft: "bg-amber-950/60",
-    text: "text-amber-100",
-    border: "border-amber-400/70",
-    fill: "#d97706",
-  },
-  금: {
-    label: "金 금",
-    bg: "bg-slate-400/90",
-    bgSoft: "bg-slate-800/60",
-    text: "text-slate-100",
-    border: "border-slate-300/70",
-    fill: "#94a3b8",
-  },
-  수: {
-    label: "水 수",
-    bg: "bg-violet-800/90",
-    bgSoft: "bg-violet-950/60",
-    text: "text-violet-100",
-    border: "border-violet-400/70",
-    fill: "#6d28d9",
-  },
+  목: { label: "木 목", hex: "#059669", solidHex: "#059669", fill: "#059669" },
+  화: { label: "火 화", hex: "#dc2626", solidHex: "#dc2626", fill: "#dc2626" },
+  토: { label: "土 토", hex: "#d97706", solidHex: "#d97706", fill: "#d97706" },
+  금: { label: "金 금", hex: "#64748b", solidHex: "#334155", fill: "#64748b" },
+  수: { label: "水 수", hex: "#7c3aed", solidHex: "#7c3aed", fill: "#7c3aed" },
 } as const;
+
+// 오행 배지에 바로 꽂아 쓰는 인라인 스타일.
+// "soft"(기본): 옅게 색을 섞은 배경 + 그 오행의 고유색 글씨 — 라이트/다크 어디서나 대비 확보.
+// "solid"(강조): 오행 고유색을 배경 전체에 채우고 흰 글씨 — 일주/현재 대운 같은 하이라이트 전용.
+export function getOhangStyle(
+  ohang: string,
+  variant: "soft" | "solid" = "soft"
+): { backgroundColor: string; color: string; borderColor: string } {
+  const theme = OHANG_THEME[ohang as OhangKey] ?? OHANG_THEME.토;
+
+  if (variant === "solid") {
+    return {
+      backgroundColor: theme.solidHex,
+      color: "#ffffff",
+      borderColor: theme.solidHex,
+    };
+  }
+
+  return {
+    backgroundColor: `color-mix(in srgb, ${theme.hex} 16%, var(--bg-surface))`,
+    color: theme.hex,
+    borderColor: `color-mix(in srgb, ${theme.hex} 45%, var(--border-default))`,
+  };
+}
 
 /** 천간 → 오행 */
 export const STEM_TO_OHANG: Record<string, OhangKey> = {

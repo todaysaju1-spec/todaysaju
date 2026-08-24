@@ -14,7 +14,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import type { SajuResult } from "ssaju";
-import { OHANG_THEME, type OhangKey } from "@/lib/saju-dashboard-utils";
+import { OHANG_THEME, getOhangStyle, type OhangKey } from "@/lib/saju-dashboard-utils";
 import { buildOhangTenGodInsight } from "@/lib/saju-dashboard-insights";
 import SajuSectionCta from "./SajuSectionCta";
 
@@ -112,14 +112,18 @@ export default function OhangDonutChart({ sajuResult, onMenuSelect }: OhangDonut
             </div>
           )}
           <div className="flex flex-wrap gap-2 mt-2 justify-center">
-            {OHANG_ORDER.map((key) => (
-              <span
-                key={key}
-                className={`text-[10px] md:text-xs px-2 py-0.5 rounded-full border ${OHANG_THEME[key].border} ${OHANG_THEME[key].bgSoft} ${OHANG_THEME[key].text}`}
-              >
-                {OHANG_THEME[key].label}: {sajuResult.fiveElements[key] ?? 0}
-              </span>
-            ))}
+            {OHANG_ORDER.map((key) => {
+              const style = getOhangStyle(key, "soft");
+              return (
+                <span
+                  key={key}
+                  className="text-[11px] md:text-xs px-2 py-0.5 rounded-full border font-medium"
+                  style={{ backgroundColor: style.backgroundColor, color: style.color, borderColor: style.borderColor }}
+                >
+                  {OHANG_THEME[key].label}: {sajuResult.fiveElements[key] ?? 0}
+                </span>
+              );
+            })}
           </div>
         </div>
 

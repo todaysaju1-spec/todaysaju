@@ -1,7 +1,7 @@
 "use client";
 
 import type { SajuResult } from "ssaju";
-import { getOhangForGanzhi, getOhangTheme, STEM_TO_OHANG } from "@/lib/saju-dashboard-utils";
+import { getOhangForGanzhi, getOhangStyle, STEM_TO_OHANG } from "@/lib/saju-dashboard-utils";
 import { buildDaeunSeyunInsight, buildPillarsInsight, PREMIUM_MENU_KEY } from "@/lib/saju-dashboard-insights";
 import SajuSectionCta from "./SajuSectionCta";
 
@@ -20,22 +20,26 @@ function GanzhiCell({
   highlight?: boolean;
 }) {
   const ohang = getOhangForGanzhi(ganzhi);
-  const theme = getOhangTheme(ohang);
+  const style = getOhangStyle(ohang, highlight ? "solid" : "soft");
   const stem = ganzhi.charAt(0);
 
   return (
     <div
       className={`rounded-xl border p-2 md:p-3 text-center min-w-[72px] transition-all ${
-        highlight
-          ? `ring-2 ring-[var(--brand-primary)] ring-offset-2 ring-offset-[var(--bg-elevated)] ${theme.bg} ${theme.border}`
-          : `${theme.bgSoft} ${theme.border}`
+        highlight ? "ring-2 ring-[var(--brand-primary)] ring-offset-2 ring-offset-[var(--bg-elevated)]" : ""
       }`}
+      style={{ backgroundColor: style.backgroundColor, borderColor: style.borderColor }}
     >
-      <div className={`text-lg md:text-xl lg:text-2xl font-bold tracking-wider ${theme.text}`}>{ganzhi}</div>
+      <div
+        className="text-lg md:text-xl lg:text-2xl font-bold tracking-wider"
+        style={{ color: style.color }}
+      >
+        {ganzhi}
+      </div>
       {subLabel && (
-        <div className="text-[10px] md:text-xs text-[var(--text-muted)] mt-0.5 truncate">{subLabel}</div>
+        <div className="text-[11px] md:text-xs text-[var(--text-muted)] mt-0.5 truncate">{subLabel}</div>
       )}
-      <div className="text-[9px] md:text-[10px] opacity-70 mt-0.5">
+      <div className="text-[10px] md:text-xs text-[var(--text-muted)] mt-0.5">
         {STEM_TO_OHANG[stem]}/{ohang}
       </div>
     </div>
@@ -108,7 +112,7 @@ function DaeunTable({ sajuResult }: { sajuResult: SajuResult }) {
         <tbody>
           {sajuResult.daeun.list.map((item) => {
             const isCurrent = current?.ganzhi === item.ganzhi && current?.startAge === item.startAge;
-            const theme = getOhangTheme(getOhangForGanzhi(item.ganzhi));
+            const style = getOhangStyle(getOhangForGanzhi(item.ganzhi), "solid");
             return (
               <tr
                 key={`${item.startAge}-${item.ganzhi}`}
@@ -121,7 +125,8 @@ function DaeunTable({ sajuResult }: { sajuResult: SajuResult }) {
                 <td className="py-2 px-1 text-[var(--text-muted)]">{item.startYear}</td>
                 <td className="py-2 px-1">
                   <span
-                    className={`inline-block px-2 py-1 rounded-lg font-bold text-xs md:text-sm ${theme.bg} ${theme.text} border ${theme.border}`}
+                    className="inline-block px-2 py-1 rounded-lg font-bold text-xs md:text-sm border"
+                    style={{ backgroundColor: style.backgroundColor, color: style.color, borderColor: style.borderColor }}
                   >
                     {item.ganzhi}
                   </span>
@@ -152,27 +157,31 @@ function SeyunTable({ sajuResult }: { sajuResult: SajuResult }) {
       <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2">
         {rows.map((item) => {
           const isCurrent = item.year === currentYear;
-          const theme = getOhangTheme(getOhangForGanzhi(item.ganzhi));
+          const style = getOhangStyle(getOhangForGanzhi(item.ganzhi), "soft");
           return (
             <div
               key={item.year}
               className={`rounded-xl border p-2 md:p-2.5 text-center ${
-                isCurrent
-                  ? "ring-2 ring-[var(--brand-primary)] bg-[var(--brand-primary)]/10 border-[var(--brand-primary)]/60"
-                  : `${theme.bgSoft} ${theme.border}`
+                isCurrent ? "ring-2 ring-[var(--brand-primary)] bg-[var(--brand-primary)]/10 border-[var(--brand-primary)]/60" : ""
               }`}
+              style={isCurrent ? undefined : { backgroundColor: style.backgroundColor, borderColor: style.borderColor }}
             >
               <div
-                className={`text-[10px] md:text-xs font-bold ${isCurrent ? "text-[var(--brand-primary)]" : "text-[var(--text-muted)]"}`}
+                className={`text-[11px] md:text-xs font-bold ${isCurrent ? "text-[var(--brand-primary)]" : "text-[var(--text-muted)]"}`}
               >
                 {isCurrent ? "★ " : ""}
                 {item.year}
               </div>
-              <div className={`text-base md:text-lg font-bold mt-1 ${theme.text}`}>{item.ganzhi}</div>
-              <div className="text-[9px] md:text-[10px] text-[var(--text-muted)] mt-1 leading-tight">
+              <div
+                className="text-base md:text-lg font-bold mt-1"
+                style={{ color: isCurrent ? "var(--brand-primary)" : style.color }}
+              >
+                {item.ganzhi}
+              </div>
+              <div className="text-[10px] md:text-xs text-[var(--text-muted)] mt-1 leading-tight">
                 {item.tenGodStem}/{item.tenGodBranch}
               </div>
-              <div className="text-[9px] md:text-[10px] text-gray-600">{item.stage12}</div>
+              <div className="text-[10px] md:text-xs text-[var(--text-muted)]">{item.stage12}</div>
             </div>
           );
         })}
