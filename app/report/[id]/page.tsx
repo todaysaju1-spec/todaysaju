@@ -1,35 +1,113 @@
-// 1. 함수 이름 앞에 'async(비동기)'를 붙여서 "이 컷은 렌더링 대기 시간이 좀 필요해!"라고 선언해 주는 거야.
-export default async function CustomerReportPage({ params }: { params: Promise<{ id: string }> }) {
-  
-  // 2. 프리미어 프록시 렌더링 기다리듯, 주소창 변수 도착할 때까지 'await'로 잠깐 기다려주기!
-  const resolvedParams = await params;
-  
-  // 3. 도착한 외계어 주소를 예쁜 한글로 디코딩 이펙트 먹이기!
-  const customerId = decodeURIComponent(resolvedParams.id);
+import { notFound } from "next/navigation";
+import type { Metadata } from "next";
+import { createSupabaseAdmin } from "@/lib/supabase-admin";
+import { getCurrentTenantTheme } from "@/lib/tenant-theme";
+import { extractTeaser, stripSuggestedQuestions } from "@/lib/share-teaser";
+
+type HistoryRow = {
+  id: string;
+  type: string;
+  title: string;
+  content: string;
+  created_at: string;
+};
+
+// 공유 링크는 로그인 없이 누구나 열 수 있어야 하므로, RLS를 우회하는 서버 전용 admin 클라이언트로
+// 필요한 컬럼(제목/본문/날짜)만 선택해서 가져온다 — user_id 등 다른 컬럼은 절대 클라이언트로 넘기지 않는다.
+async function getSharedHistoryRow(id: string): Promise<HistoryRow | null> {
+  try {
+    const admin = createSupabaseAdmin();
+    const { data, error } = await admin
+      .from("saju_history")
+      .select("id, type, title, content, created_at")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (error || !data) return null;
+    return data as HistoryRow;
+  } catch {
+    return null;
+  }
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const [row, theme] = await Promise.all([getSharedHistoryRow(id), getCurrentTenantTheme()]);
+
+  if (!row) {
+    return { title: theme.siteName };
+  }
+
+  const teaser = extractTeaser(row.content, undefined, 90);
+  const title = `${row.title} | ${theme.siteName}`;
+
+  return {
+    title,
+    description: teaser,
+    openGraph: {
+      title,
+      description: teaser,
+      siteName: theme.siteName,
+      images: [{ url: "/og-image.png", width: 1200, height: 630, alt: theme.siteName }],
+      locale: "ko_KR",
+      type: "article",
+    },
+  };
+}
+
+export default async function SharedResultPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const [row, theme] = await Promise.all([getSharedHistoryRow(id), getCurrentTenantTheme()]);
+
+  if (!row) {
+    notFound();
+  }
+
+  const displayContent = stripSuggestedQuestions(row.content).replaceAll("**", "");
+  const formattedDate = new Date(row.created_at).toLocaleDateString("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-zinc-100 flex flex-col items-center justify-center p-6">
-      
-      {/* 프리미엄 리포트 메인 컨테이너 */}
-      <div className="w-full max-w-2xl bg-[#1a1a1a] border border-[#D4AF37]/30 rounded-2xl p-8 shadow-[0_0_30px_rgba(212,175,55,0.1)]">
-        
-        {/* 헤더 타이틀 */}
-        <h1 className="text-2xl font-bold text-[#D4AF37] mb-6 text-center">
-          ✨ {customerId} 님의 프리미엄 사주 리포트
-        </h1>
-        
-        {/* 본문 레이어 */}
-        <div className="text-zinc-300 leading-relaxed whitespace-pre-wrap min-h-[300px] flex items-center justify-center border border-dashed border-zinc-700 rounded-xl">
-          <p className="text-zinc-500 animate-pulse">
-            (여기에 곧 n8n 배관을 타고 온 AI 사주 전문이 렌더링 될 예정입니다...)
-          </p>
+    <div className="min-h-screen bg-[var(--bg-base)] flex flex-col items-center justify-center p-5 md:p-6">
+      <div className="w-full max-w-lg bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-3xl p-6 md:p-8 shadow-2xl">
+        <div className="text-center mb-6">
+          <div className="text-xs text-[var(--text-muted)] mb-2">{formattedDate}</div>
+          <h1
+            className="text-xl md:text-2xl font-bold text-[var(--text-body)]"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            {row.title}
+          </h1>
         </div>
 
-        {/* 하단 장식 */}
-        <div className="mt-8 text-center text-xs text-zinc-600">
-          © 2026 FLUX MEDIA · Premium Saju Studio
+        <div
+          className="text-[var(--text-body)] text-base leading-loose whitespace-pre-wrap mb-8"
+          style={{ fontFamily: "var(--font-body)" }}
+        >
+          {displayContent}
         </div>
 
+        <a
+          href="/"
+          className="block w-full text-center bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-[var(--text-on-brand)] font-bold py-3.5 rounded-xl transition-all"
+        >
+          나도 무료로 오늘의 사주 보러가기 👉
+        </a>
+
+        <p className="text-center text-[11px] text-[var(--text-muted)] mt-4">
+          {theme.siteName} · 이 리포트는 공유된 개인 운세 결과입니다
+        </p>
       </div>
     </div>
   );

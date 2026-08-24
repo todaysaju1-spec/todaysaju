@@ -2,6 +2,7 @@
 
 import { Sparkles, CheckCircle2, Share2 } from "lucide-react";
 import ButtonSpinner from "@/components/ButtonSpinner";
+import { extractTeaser } from "@/lib/share-teaser";
 import type { ClientTenantTheme } from "./types";
 
 type UserInfo = {
@@ -34,6 +35,7 @@ type ResultScreenProps = {
   partnerInfo: PartnerInfo;
   setPartnerInfo: (info: PartnerInfo) => void;
   sajuResultText: string;
+  resultHistoryId: string | null;
   followUpResult: string;
   isFollowUpLoading: boolean;
   suggestedQuestions: string[];
@@ -59,6 +61,7 @@ export default function ResultScreen({
   partnerInfo,
   setPartnerInfo,
   sajuResultText,
+  resultHistoryId,
   followUpResult,
   isFollowUpLoading,
   suggestedQuestions,
@@ -74,19 +77,14 @@ export default function ResultScreen({
   onSavePartnerInfo,
   onFinishEditing,
 }: ResultScreenProps) {
-  // 결과 텍스트의 첫 섹션에서 짧은 한 줄 티저를 뽑아 공유 문구로 쓴다
-  const extractTeaser = (text: string, maxLen = 50) => {
-    const cleaned = text.replaceAll("**", "").trim();
-    const afterHeading = cleaned.replace(/^\[[^\]]*\]\s*/, "");
-    const firstLine = (afterHeading.split("\n").find((l) => l.trim().length > 0) || afterHeading).trim();
-    return firstLine.length > maxLen ? `${firstLine.slice(0, maxLen)}...` : firstLine;
-  };
-
   const handleShare = async () => {
     if (!sajuResultText) return;
-    const teaser = extractTeaser(sajuResultText);
-    const shareText = `${userInfo.name || "제"}님의 오늘 총운: ${teaser}\n\n나도 무료로 오늘의 사주 보러가기 👉`;
-    const shareUrl = typeof window !== "undefined" ? window.location.origin : "https://todaysajupro.com";
+    const teaser = extractTeaser(sajuResultText, userInfo.name);
+    const shareText = `🔮 오늘의사주 결과\n${teaser}\n\n나도 무료로 오늘의 사주 보러가기 👉`;
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://todaysajupro.com";
+    // 결과가 DB에 저장되어 있으면(=resultHistoryId 존재) 실제 풀이 내용이 보이는 개인 리포트 페이지를 공유하고,
+    // 저장되지 않았을 경우(비로그인 등)에만 사이트 첫 화면으로 폴백한다.
+    const shareUrl = resultHistoryId ? `${origin}/report/${resultHistoryId}` : origin;
 
     if (typeof navigator !== "undefined" && navigator.share) {
       try {

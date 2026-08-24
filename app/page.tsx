@@ -164,6 +164,8 @@ export default function TodaySajuLanding() {
   const [showChargeModal, setShowChargeModal] = useState(false);
   const [loadingText, setLoadingText] = useState("명식(命式)을 세우고 타고난 기운의 흐름을 짚어보고 있습니다.\n(예상 소요 시간: 1~2분)");
   const [sajuResultText, setSajuResultText] = useState("");
+  // 결과 공유 시 실제 풀이 내용이 보이는 /report/[id] 링크를 만들기 위해, 방금 저장한 saju_history 행의 id를 들고 있는다.
+  const [resultHistoryId, setResultHistoryId] = useState<string | null>(null);
   // 💡 [추가] 랜덤 별자리 데이터를 담을 state
 const [stars, setStars] = useState<any[]>([]);
 
@@ -542,15 +544,24 @@ const handleWithdraw = async () => {
 };
 
 // 💾 [사주 기록] 분석 결과를 saju_history에 새 행으로 INSERT (계정 프로필과 무관)
-const saveSajuHistory = async (type: string, title: string, content: string) => {
-  if (!user) return; // 로그인 안 했으면 패스
-  const { error } = await supabase.from('saju_history').insert({
-    user_id: user.id,
-    type: type,
-    title: title,
-    content: content
-  });
-  if (error) console.error("사주 내역 저장 실패:", error);
+// 성공 시 삽입된 행의 id를 반환한다 — 결과 공유 링크(/report/[id])를 만드는 데 사용.
+const saveSajuHistory = async (type: string, title: string, content: string): Promise<string | null> => {
+  if (!user) return null; // 로그인 안 했으면 패스
+  const { data, error } = await supabase
+    .from('saju_history')
+    .insert({
+      user_id: user.id,
+      type: type,
+      title: title,
+      content: content
+    })
+    .select('id')
+    .single();
+  if (error) {
+    console.error("사주 내역 저장 실패:", error);
+    return null;
+  }
+  return data?.id ?? null;
 };
 
 // 👤 [회원 정보] 내 계정 프로필(user_profiles) 저장
@@ -970,13 +981,13 @@ const handleUseTicketAndRetry = async () => {
         safeSetItem(`free_saju_${session.user.id}`, kstDateStr);
       }
 
-      if (!options?.skipFreeLimitCheck) {
-        saveSajuHistory(FREE_SAJU_TYPE, FREE_SAJU_TITLE, data.result_text);
-      } else if (options.saveAsTicketRetry) {
-        saveSajuHistory("standard", "오늘의 운세 (티켓 재조회)", data.result_text);
-      } else {
-        saveSajuHistory("standard", `[${userInfo.name}]님의 일일 운세`, data.result_text);
-      }
+      setResultHistoryId(null);
+      const historyPromise = !options?.skipFreeLimitCheck
+        ? saveSajuHistory(FREE_SAJU_TYPE, FREE_SAJU_TITLE, data.result_text)
+        : options.saveAsTicketRetry
+        ? saveSajuHistory("standard", "오늘의 운세 (티켓 재조회)", data.result_text)
+        : saveSajuHistory("standard", `[${userInfo.name}]님의 일일 운세`, data.result_text);
+      historyPromise.then((id) => setResultHistoryId(id));
 
       if (hasPartnerBirthInput(partnerInfo)) {
         savePartnerInfoToStorage(partnerInfo);
@@ -1116,7 +1127,8 @@ const handleFollowUp = async (question: string) => {
         if (typeof data.standardTicket === "number") {
           setStandardTicket(data.standardTicket);
         }
-        saveSajuHistory("menu", title, data.result_text);
+        setResultHistoryId(null);
+        saveSajuHistory("menu", title, data.result_text).then((id) => setResultHistoryId(id));
       } else {
         alert(webhookResult.error || "서버 통신이 지연되고 있습니다. 다시 시도해주세요.");
         setStep("result");
@@ -1189,7 +1201,8 @@ const handlePremiumClick = async () => {
       if (typeof data.premiumTicket === "number") {
         setPremiumTicket(data.premiumTicket);
       }
-      saveSajuHistory("premium", "프리미엄 인생 마스터플랜", data.result_text);
+      setResultHistoryId(null);
+      saveSajuHistory("premium", "프리미엄 인생 마스터플랜", data.result_text).then((id) => setResultHistoryId(id));
     } else {
       alert(webhookResult.error || "서버 통신이 지연되고 있습니다. 다시 시도해주세요.");
       setStep("result");
@@ -1470,6 +1483,7 @@ const handlePremiumClick = async () => {
             partnerInfo={partnerInfo}
             setPartnerInfo={setPartnerInfo}
             sajuResultText={sajuResultText}
+            resultHistoryId={resultHistoryId}
             followUpResult={followUpResult}
             isFollowUpLoading={isFollowUpLoading}
             suggestedQuestions={suggestedQuestions}
