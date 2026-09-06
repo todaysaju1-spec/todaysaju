@@ -7,6 +7,7 @@ type LandingHeroProps = {
   isRealUser: boolean;
   userName: string | null;
   tenantTheme: ClientTenantTheme | null;
+  showHeroVisual: boolean;
   onStartFree: () => void;
   onLogin: () => void;
   onContinueAsUser: () => void;
@@ -27,6 +28,7 @@ export default function LandingHero({
   isRealUser,
   userName,
   tenantTheme,
+  showHeroVisual,
   onStartFree,
   onLogin,
   onContinueAsUser,
@@ -80,13 +82,15 @@ export default function LandingHero({
   if (isCharacterTheme) {
     return (
       <div className="space-y-0 animate-in fade-in slide-in-from-bottom-6 duration-700 text-center">
-        <div className="flex justify-center">
-          <img
-            src={tenantTheme!.characterHeroImageUrl!}
-            alt="오늘의사주 명리사 캐릭터"
-            className="w-full rounded-3xl object-cover shadow-[0_0_30px_rgba(217,119,87,0.25)] border border-[var(--border-default)]"
-          />
-        </div>
+        {showHeroVisual && (
+          <div className="flex justify-center">
+            <img
+              src={tenantTheme!.characterHeroImageUrl!}
+              alt="오늘의사주 명리사 캐릭터"
+              className="w-full rounded-3xl object-cover shadow-[0_0_30px_rgba(217,119,87,0.25)] border border-[var(--border-default)]"
+            />
+          </div>
+        )}
         {buttons}
       </div>
     );
@@ -94,22 +98,29 @@ export default function LandingHero({
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700 text-center">
-      <div className="inline-flex items-center gap-2 bg-[var(--bg-hover)] border border-[var(--brand-primary)]/30 px-5 py-2.5 rounded-full">
-        <Gift size={18} className="text-[var(--brand-primary)]" />
-        <span className="text-sm font-bold text-[var(--brand-primary)]">매일 접속 시 '오늘의 종합사주' 1회 무료!</span>
-      </div>
+      {showHeroVisual && (
+        <>
+          <div className="inline-flex items-center gap-2 bg-[var(--bg-hover)] border border-[var(--brand-primary)]/30 px-5 py-2.5 rounded-full">
+            <Gift size={18} className="text-[var(--brand-primary)]" />
+            <span className="text-sm font-bold text-[var(--brand-primary)]">매일 접속 시 '오늘의 종합사주' 1회 무료!</span>
+          </div>
 
-      <div className="space-y-5 pt-2">
-        <h1 className="text-3xl sm:text-4xl md:text-5xl font-light leading-snug text-[var(--text-body)] tracking-wide pt-2 break-keep">
-          <span className="inline-block">나의 가장 궁금한 답</span><br />
-          <span className="font-bold text-transparent bg-clip-text bg-gradient-to-r from-[var(--brand-primary)] via-[var(--brand-primary-hover)] to-[var(--brand-primary)] inline-block mt-2">사주에서 찾습니다</span>
-        </h1>
+          <div className="space-y-5 pt-2">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-light leading-snug text-[var(--text-body)] tracking-wide pt-2 break-keep">
+              <span className="inline-block">나의 가장 궁금한 답</span><br />
+              <span className="font-bold text-transparent bg-clip-text bg-gradient-to-r from-[var(--brand-primary)] via-[var(--brand-primary-hover)] to-[var(--brand-primary)] inline-block mt-2">사주에서 찾습니다</span>
+            </h1>
 
-        <p className="text-sm md:text-base text-[var(--text-muted)] leading-relaxed pt-3">
-          복잡한 회원가입 없이 단 1초 만에 시작하세요.<br />
-          지금 시작하면 심층 풀이용 <span className="text-[var(--brand-primary)] font-bold text-lg">스탠다드 패스 1장</span>을 드립니다.
-        </p>
-      </div>
+            <p className="text-sm md:text-base text-[var(--text-muted)] leading-relaxed pt-3">
+              {isRealUser
+                ? "저장된 명식으로 바로 오늘의 운세를 볼 수 있어요."
+                : "복잡한 회원가입 없이 단 1초 만에 시작하세요."}
+              <br />
+              지금 시작하면 심층 풀이용 <span className="text-[var(--brand-primary)] font-bold text-lg">스탠다드 패스 1장</span>을 드립니다.
+            </p>
+          </div>
+        </>
+      )}
 
       {buttons}
     </div>

@@ -3,6 +3,7 @@
 import { Sparkles, CheckCircle2, Share2 } from "lucide-react";
 import ButtonSpinner from "@/components/ButtonSpinner";
 import { extractTeaser } from "@/lib/share-teaser";
+import ResultReading from "@/components/saju/ResultReading";
 import type { ClientTenantTheme } from "./types";
 
 type UserInfo = {
@@ -131,12 +132,7 @@ export default function ResultScreen({
           </h3>
         </div>
 
-        <div
-          className="text-[var(--text-body)] text-lg md:text-xl leading-loose tracking-wide mb-6 whitespace-pre-wrap"
-          style={{ fontFamily: "var(--font-body)" }}
-        >
-          {sajuResultText.replaceAll("**", "")}
-        </div>
+        <ResultReading text={sajuResultText} />
 
         {/* 📤 결과 공유하기 */}
         <button

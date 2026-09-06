@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Star, Gift } from "lucide-react";
 import { supabase } from "@/lib/supabase"; // Supabase 연동 클라이언트
 import { calculateSaju, type SajuResult } from "ssaju";
-import { safeGetItem, safeGetJSON, safeSetJSON, safeSetItem, safeSessionSetJSON } from "@/lib/safe-storage";
+import { safeGetItem, safeGetJSON, safeSetJSON, safeSetItem, safeSessionGetItem, safeSessionRemoveItem, safeSessionSetItem, safeSessionSetJSON } from "@/lib/safe-storage";
 import { getPartnerWebhookFields, hasPartnerBirthInput } from "@/lib/partner-saju-payload";
 import { calculateSajuFromUserInfo } from "@/lib/saju-dashboard-utils";
 import { PREMIUM_MENU_KEY } from "@/lib/saju-dashboard-insights";
@@ -33,6 +33,7 @@ const FREE_SAJU_LIMIT_MESSAGE =
 
 const PARTNER_INFO_STORAGE_KEY = "saved_partner_info";
 const SPLASH_DISMISSED_KEY = "todaysaju_splash_dismissed";
+const AFTER_OAUTH_KEY = "todaysaju_after_oauth";
 
 type FortuneMenuItem = {
   icon: string;
@@ -176,6 +177,7 @@ const [stars, setStars] = useState<any[]>([]);
 // <html data-theme>를 읽어 필요할 때만 켠다 — /api/theme fetch를 기다리지 않아 깜빡임이 없다.
 const [splashMode, setSplashMode] = useState<"dark" | "light" | "character" | null>(null);
 const [initialHeroImageUrl, setInitialHeroImageUrl] = useState("");
+const [showLandingHeroVisual, setShowLandingHeroVisual] = useState(true);
 
 useLayoutEffect(() => {
   const mode = document.documentElement.getAttribute("data-theme");
@@ -183,9 +185,11 @@ useLayoutEffect(() => {
     setInitialHeroImageUrl(document.documentElement.getAttribute("data-hero-image") || "");
     if (safeGetItem(SPLASH_DISMISSED_KEY) === "1") {
       setSplashMode(null);
+      setShowLandingHeroVisual(true);
       return;
     }
     setSplashMode(mode);
+    setShowLandingHeroVisual(false);
   }
 }, []);
 
@@ -528,18 +532,27 @@ useEffect(() => {
     profileBootstrappedRef.current = false;
     return;
   }
-  if (step !== "login" || profileBootstrappedRef.current) return;
-
+  if (profileBootstrappedRef.current) return;
   profileBootstrappedRef.current = true;
+
+  const afterOauth = safeSessionGetItem(AFTER_OAUTH_KEY) === "input";
+  if (afterOauth) {
+    safeSessionRemoveItem(AFTER_OAUTH_KEY);
+    setSplashMode(null);
+    setStep("input");
+  }
+
   void (async () => {
     const { loaded } = await applySavedProfile(user.id, { silent: true });
     if (loaded) {
       setSplashMode(null);
       setStep("input");
       setIsAgreed(true);
+    } else if (afterOauth) {
+      setStep("input");
     }
   })();
-}, [user, step]);
+}, [user]);
 
 useEffect(() => {
   if (step === "analyzing" || step === "result") {
@@ -703,6 +716,7 @@ const fetchMyHistory = async () => {
   const handleGoogleLogin = async () => {
     if (isAnyActionLoading) return;
     setLoadingAction("google");
+    safeSessionSetItem(AFTER_OAUTH_KEY, "input");
     try {
       const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined;
       const { error } = user?.is_anonymous
@@ -722,6 +736,7 @@ const fetchMyHistory = async () => {
   const handleKakaoLogin = async () => {
     if (isAnyActionLoading) return;
     setLoadingAction("kakao");
+    safeSessionSetItem(AFTER_OAUTH_KEY, "input");
     try {
       const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined;
       const { error } = user?.is_anonymous
@@ -921,7 +936,11 @@ const handleUseTicketAndRetry = async () => {
  // 입력 폼의 "오늘의 사주 무료보기" 버튼 클릭 핸들러 (동의 체크 후 handleAnalyze 실행)
  const handleFreeAnalyzeClick = async () => {
    if (hasUsedDailyFree) {
-     alert(FREE_SAJU_LIMIT_MESSAGE);
+     if (!isRealUser) {
+       setShowGuestModal(true);
+       return;
+     }
+     setIsAlreadyUsedModalOpen(true);
      return;
    }
    if (!isAgreed) {
@@ -973,7 +992,11 @@ const handleUseTicketAndRetry = async () => {
       if (alreadyUsed) {
         setHasUsedDailyFree(true);
         safeSetItem(`free_saju_${user.id}`, getKSTDayBounds().kstDateStr);
-        alert(FREE_SAJU_LIMIT_MESSAGE);
+        if (isRealUser) {
+          setIsAlreadyUsedModalOpen(true);
+        } else {
+          setShowGuestModal(true);
+        }
         return;
       }
     }
@@ -1511,6 +1534,7 @@ const handlePremiumClick = async () => {
             isRealUser={isRealUser}
             userName={user?.user_metadata?.name || null}
             tenantTheme={tenantTheme}
+            showHeroVisual={showLandingHeroVisual}
             onStartFree={handleStartFreeGuest}
             onLogin={() => setShowLoginChoiceModal(true)}
             onContinueAsUser={() => setStep("input")}
@@ -1561,10 +1585,6 @@ const handlePremiumClick = async () => {
           <AnalyzingScreen
             tenantTheme={tenantTheme}
             loadingText={loadingText}
-            onViewLater={() => {
-              alert("분석이 진행 중입니다.\n완료되면 '사주 보관함'에서 바로 확인하실 수 있어요!");
-              setStep("result"); // 로딩 화면에서 바로 메인 결과 화면으로 전환
-            }}
           />
         )}
 

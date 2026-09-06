@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import ButtonSpinner from "@/components/ButtonSpinner";
 
 type UserInfo = {
@@ -64,6 +65,8 @@ export default function SajuInputForm({
   onSavePartnerInfo,
   onAnalyze,
 }: SajuInputFormProps) {
+  const [showOptional, setShowOptional] = useState(false);
+
   return (
     <div id="saju-input-form" className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-500 mt-2 scroll-mt-28 md:scroll-mt-32">
       {/* 입력 폼 배경 */}
@@ -155,6 +158,16 @@ export default function SajuInputForm({
           )}
         </div>
 
+        <button
+          type="button"
+          onClick={() => setShowOptional((prev) => !prev)}
+          className="w-full py-3 rounded-xl text-sm font-bold border border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-muted)] hover:border-[var(--brand-primary)]/50 hover:text-[var(--text-body)] transition-all"
+        >
+          {showOptional ? "선택 정보 접기 ▲" : "결혼·자녀·상대 정보 입력하기 (선택) ▼"}
+        </button>
+
+        {showOptional && (
+        <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
         {/* 5. 결혼/자녀 유무 */}
         <div className="grid grid-cols-2 gap-4 pt-2 border-t border-[var(--border-default)]/50">
           <div>
@@ -286,6 +299,8 @@ export default function SajuInputForm({
             </div>
           )}
         </div>
+        </div>
+        )}
         {/* 개인정보 동의 체크박스 */}
         <div className="flex items-center gap-2 mb-4 px-1">
           <input
@@ -302,16 +317,16 @@ export default function SajuInputForm({
 
         {/* 분석 버튼 */}
         <button
-          disabled={hasUsedDailyFree || isAnalyzeLoading}
+          disabled={isAnalyzeLoading}
           onClick={onAnalyze}
           className={`w-full py-4 bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-hover)] text-[var(--text-on-brand)] font-extrabold rounded-2xl text-lg shadow-[0_0_20px_rgba(212,175,55,0.4)] transition-all flex items-center justify-center gap-2 ${
-            hasUsedDailyFree || isAnalyzeLoading ? "opacity-50 cursor-not-allowed" : "hover:scale-[1.02]"
+            isAnalyzeLoading ? "opacity-50 cursor-not-allowed" : "hover:scale-[1.02]"
           }`}
         >
-          {hasUsedDailyFree ? (
-            <>오늘 조회 완료</>
-          ) : isAnalyzeLoading ? (
+          {isAnalyzeLoading ? (
             <span className="inline-flex items-center gap-2"><ButtonSpinner /> 처리 중...</span>
+          ) : hasUsedDailyFree ? (
+            <>🎟️ 티켓 1장으로 다시 보기</>
           ) : (
             <>오늘의 사주 무료보기 ✨</>
           )}

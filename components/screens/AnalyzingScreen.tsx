@@ -7,12 +7,8 @@ import type { ClientTenantTheme } from "./types";
 type AnalyzingScreenProps = {
   tenantTheme: ClientTenantTheme | null;
   loadingText: string;
-  onViewLater: () => void;
 };
 
-// 캐릭터 테마 전용 로딩 연출: 20/40/60/80/100% 진행률이 그려진 카드 5장을
-// 순서대로 넘겨 보여준다. 실제 서버 응답 진행률과는 무관한 연출용 타이머라,
-// 마지막 프레임(100%)에 도달하면 응답이 늦어져도 그대로 멈춰있는다.
 const CHARACTER_LOADING_FRAMES = [
   "/character/loading-20.webp",
   "/character/loading-40.webp",
@@ -21,11 +17,54 @@ const CHARACTER_LOADING_FRAMES = [
   "/character/loading-100.webp",
 ];
 const FRAME_INTERVAL_MS = 18000;
+const PROGRESS_DURATION_MS = 90000;
+const LOADING_TIPS = [
+  "생년월일과 시간을 만세력과 대조하고 있어요",
+  "오행과 십성의 균형을 살피고 있어요",
+  "올해 세운과 대운의 흐름을 맞추고 있어요",
+];
 
-// 🎬 [씬 3] 분석 중 로딩 애니메이션
-export default function AnalyzingScreen({ tenantTheme, loadingText, onViewLater }: AnalyzingScreenProps) {
+function useLoadingProgress() {
+  const [progress, setProgress] = useState(8);
+
+  useEffect(() => {
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => {
+      const elapsed = Date.now() - startedAt;
+      const next = Math.min(96, 8 + (elapsed / PROGRESS_DURATION_MS) * 88);
+      setProgress(next);
+      if (next >= 96) window.clearInterval(timer);
+    }, 400);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return progress;
+}
+
+function ProgressBlock({ progress, tip, loadingText }: { progress: number; tip: string; loadingText: string }) {
+  return (
+    <div className="w-full max-w-xs space-y-3">
+      <div className="h-2 rounded-full bg-[var(--bg-muted)] overflow-hidden">
+        <div
+          className="h-full rounded-full bg-[var(--brand-primary)] transition-[width] duration-500"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+      <p className="text-[var(--brand-primary)] text-xs font-bold">{Math.round(progress)}%</p>
+      <p className="text-[var(--text-muted)] text-xs leading-relaxed">{tip}</p>
+      <p className="text-[var(--brand-primary)] text-sm tracking-wide px-1 leading-relaxed font-light whitespace-pre-wrap">
+        {loadingText}
+      </p>
+      <p className="text-[10px] text-[var(--text-muted)]">분석이 끝나면 결과가 자동으로 열립니다. 창을 닫지 말아 주세요.</p>
+    </div>
+  );
+}
+
+export default function AnalyzingScreen({ tenantTheme, loadingText }: AnalyzingScreenProps) {
   const isCharacterTheme = tenantTheme?.mode === "character";
   const [frameIndex, setFrameIndex] = useState(0);
+  const [tipIndex, setTipIndex] = useState(0);
+  const progress = useLoadingProgress();
 
   useEffect(() => {
     if (!isCharacterTheme) return;
@@ -34,6 +73,13 @@ export default function AnalyzingScreen({ tenantTheme, loadingText, onViewLater 
     }, FRAME_INTERVAL_MS);
     return () => clearInterval(timer);
   }, [isCharacterTheme]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTipIndex((prev) => (prev + 1) % LOADING_TIPS.length);
+    }, 6000);
+    return () => clearInterval(timer);
+  }, []);
 
   if (isCharacterTheme) {
     return (
@@ -46,38 +92,21 @@ export default function AnalyzingScreen({ tenantTheme, loadingText, onViewLater 
             className="absolute inset-0 w-full h-full object-cover animate-in fade-in duration-500"
           />
         </div>
-        <button
-          onClick={onViewLater}
-          className="px-6 py-2.5 text-xs text-[var(--text-muted)] border border-[var(--text-muted)]/50 rounded-full hover:bg-[var(--text-muted)]/10 hover:text-[var(--text-body)] transition-all"
-        >
-          사주 보관함에서 나중에 결과보기 ✨
-        </button>
+        <ProgressBlock progress={progress} tip={LOADING_TIPS[tipIndex]} loadingText={loadingText} />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col items-center justify-center space-y-8 h-[50vh] animate-in fade-in duration-500 text-center">
+    <div className="flex flex-col items-center justify-center space-y-8 min-h-[50vh] animate-in fade-in duration-500 text-center">
       <div className="relative w-28 h-28 flex items-center justify-center">
         <div className="absolute inset-0 border border-[var(--brand-primary)]/30 rounded-full animate-orbit">
           <div className="absolute -top-1 left-1/2 w-2.5 h-2.5 bg-[var(--brand-primary)] rounded-full shadow-[0_0_10px_var(--brand-primary)]"></div>
         </div>
-        <div className="absolute inset-3 border border-[#6b3eb0]/40 rounded-full animate-orbit" style={{ animationDirection: 'reverse', animationDuration: '15s' }}></div>
+        <div className="absolute inset-3 border border-[#6b3eb0]/40 rounded-full animate-orbit" style={{ animationDirection: "reverse", animationDuration: "15s" }}></div>
         <Compass size={36} className="text-[var(--brand-primary)] animate-pulse" />
       </div>
-
-      {/* 로딩 텍스트 */}
-      <p className="text-[var(--brand-primary)] text-sm tracking-wide animate-pulse px-4 leading-relaxed font-light whitespace-pre-wrap">
-        {loadingText}
-      </p>
-
-      {/* 🌟 새로 추가한 버튼 */}
-      <button
-        onClick={onViewLater}
-        className="mt-6 px-6 py-2.5 text-xs text-[var(--text-muted)] border border-[var(--text-muted)]/50 rounded-full hover:bg-[var(--text-muted)]/10 hover:text-[var(--text-body)] transition-all"
-      >
-        사주 보관함에서 나중에 결과보기 ✨
-      </button>
+      <ProgressBlock progress={progress} tip={LOADING_TIPS[tipIndex]} loadingText={loadingText} />
     </div>
   );
 }
