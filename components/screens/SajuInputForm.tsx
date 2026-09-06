@@ -65,7 +65,7 @@ export default function SajuInputForm({
   onAnalyze,
 }: SajuInputFormProps) {
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-500 mt-2">
+    <div id="saju-input-form" className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-500 mt-2 scroll-mt-28 md:scroll-mt-32">
       {/* 입력 폼 배경 */}
       <div className="bg-[var(--bg-surface)]/90 backdrop-blur-xl p-7 rounded-3xl border border-[var(--border-strong)]/60 shadow-2xl space-y-6 text-left relative z-20">
         {/* 👇 새로 추가할 '내 명식 자동 입력' 버튼 👇 */}

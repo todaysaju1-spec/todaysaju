@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useLayoutEffect, type ReactNode } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Star, Gift } from "lucide-react";
 import { supabase } from "@/lib/supabase"; // Supabase 연동 클라이언트
 import { calculateSaju, type SajuResult } from "ssaju";
-import { safeGetJSON, safeSetJSON, safeSetItem, safeSessionSetJSON } from "@/lib/safe-storage";
+import { safeGetItem, safeGetJSON, safeSetJSON, safeSetItem, safeSessionSetJSON } from "@/lib/safe-storage";
 import { getPartnerWebhookFields, hasPartnerBirthInput } from "@/lib/partner-saju-payload";
 import { calculateSajuFromUserInfo } from "@/lib/saju-dashboard-utils";
 import { PREMIUM_MENU_KEY } from "@/lib/saju-dashboard-insights";
@@ -32,6 +32,7 @@ const FREE_SAJU_LIMIT_MESSAGE =
   "오늘의 무료 사주는 하루에 한 번만 제공됩니다. [사주 보관함]에서 오늘 받은 운세를 다시 확인해 보세요! 🍀";
 
 const PARTNER_INFO_STORAGE_KEY = "saved_partner_info";
+const SPLASH_DISMISSED_KEY = "todaysaju_splash_dismissed";
 
 type FortuneMenuItem = {
   icon: string;
@@ -180,9 +181,24 @@ useLayoutEffect(() => {
   const mode = document.documentElement.getAttribute("data-theme");
   if (mode === "dark" || mode === "light" || mode === "character") {
     setInitialHeroImageUrl(document.documentElement.getAttribute("data-hero-image") || "");
+    if (safeGetItem(SPLASH_DISMISSED_KEY) === "1") {
+      setSplashMode(null);
+      return;
+    }
     setSplashMode(mode);
   }
 }, []);
+
+  const dismissSplash = () => {
+    safeSetItem(SPLASH_DISMISSED_KEY, "1");
+    setSplashMode(null);
+  };
+
+  const scrollToInputForm = () => {
+    window.requestAnimationFrame(() => {
+      document.getElementById("saju-input-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
 
 // 테넌트 테마(다크/라이트/캐릭터) — 캐릭터 모드일 때 이미지 URL을 표시하기 위해 조회
 const [tenantTheme, setTenantTheme] = useState<{
@@ -266,6 +282,53 @@ const [passwordInput, setPasswordInput] = useState("");
   // (기존 코드) 꼬리질문 상태 아래나 편한 곳에 추가해 주세요!
   const [showResultForm, setShowResultForm] = useState(false); // 👈 결과창 접이식 폼 스위치
   const [isAgreed, setIsAgreed] = useState(false);
+  const profileBootstrappedRef = useRef(false);
+
+  const applySavedProfile = async (
+    userId: string,
+    options?: { silent?: boolean },
+  ): Promise<{ loaded: boolean; info?: typeof userInfo }> => {
+    try {
+      const { data } = await supabase.from("user_profiles").select("*").eq("id", userId).single();
+
+      if (data && data.birth_date) {
+        const nextInfo = {
+          name: data.display_name || "",
+          birth: data.birth_date || "",
+          hour: data.birth_hour || "12",
+          min: data.birth_min || "00",
+          gender: data.gender || "남자",
+          maritalStatus: data.marital_status || "싱글",
+          hasChildren: data.has_children || "없음",
+          isTimeKnown: data.birth_hour !== "99",
+        };
+        setUserInfo((prev) => ({
+          ...prev,
+          ...nextInfo,
+          calendarType: data.calendar_type || prev.calendarType,
+        }));
+        if (!options?.silent) {
+          showToast("✨ 저장된 사주 명식을 불러왔습니다.", "success");
+        }
+        return { loaded: true, info: nextInfo };
+      }
+
+      if (!options?.silent) {
+        showToast(
+          "아직 저장된 사주 정보가 없습니다.\n최초 1회 사주를 분석하시면 정보가 자동 저장됩니다!",
+          "info",
+        );
+      }
+      return { loaded: false };
+    } catch (err) {
+      console.error("내 정보 불러오기 실패:", err);
+      if (!options?.silent) {
+        showToast("정보를 불러오는 중 오류가 발생했습니다.", "error");
+      }
+      return { loaded: false };
+    }
+  };
+
   // 🪄 내 사주 명식 자동 불러오기
   const fetchMySavedInfo = async () => {
     if (!user) {
@@ -276,27 +339,7 @@ const [passwordInput, setPasswordInput] = useState("");
 
     setLoadingAction("myInfo");
     try {
-      const { data } = await supabase.from('user_profiles').select('*').eq('id', user.id).single();
-
-      if (data && data.birth_date) {
-        setUserInfo(prev => ({
-          ...prev,
-          name: data.display_name || "",
-          birth: data.birth_date || "",
-          hour: data.birth_hour || "12",
-          min: data.birth_min || "00",
-          gender: data.gender || "남자",
-          maritalStatus: data.marital_status || "싱글",
-          hasChildren: data.has_children || "없음",
-          isTimeKnown: data.birth_hour !== "99"
-        }));
-        showToast("✨ 저장된 사주 명식을 불러왔습니다.", "success");
-      } else {
-        showToast("아직 저장된 사주 정보가 없습니다.\n최초 1회 사주를 분석하시면 정보가 자동 저장됩니다!", "info");
-      }
-    } catch (err) {
-      console.error("내 정보 불러오기 실패:", err);
-      showToast("정보를 불러오는 중 오류가 발생했습니다.", "error");
+      await applySavedProfile(user.id);
     } finally {
       setLoadingAction(null);
     }
@@ -479,6 +522,24 @@ useEffect(() => {
 
   return () => subscription.unsubscribe();
 }, []);
+
+useEffect(() => {
+  if (!user?.id || user.is_anonymous) {
+    profileBootstrappedRef.current = false;
+    return;
+  }
+  if (step !== "login" || profileBootstrappedRef.current) return;
+
+  profileBootstrappedRef.current = true;
+  void (async () => {
+    const { loaded } = await applySavedProfile(user.id, { silent: true });
+    if (loaded) {
+      setSplashMode(null);
+      setStep("input");
+      setIsAgreed(true);
+    }
+  })();
+}, [user, step]);
 
 useEffect(() => {
   if (step === "analyzing" || step === "result") {
@@ -1258,16 +1319,31 @@ const handlePremiumClick = async () => {
     }
   };
 
-  const handleOpenFreeManseryeok = () => {
+  const handleOpenFreeManseryeok = async () => {
     if (isAnyActionLoading) return;
 
-    if (!userInfo.name?.trim() || !userInfo.birth?.trim()) {
-      showToast("먼저 상단에 사주 명식(이름·생년월일)을 입력해 주세요.", "warning");
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      return;
+    let effectiveInfo = userInfo;
+
+    if (!effectiveInfo.name?.trim() || !effectiveInfo.birth?.trim()) {
+      setStep("input");
+      scrollToInputForm();
+
+      if (isRealUser && user) {
+        const { loaded, info } = await applySavedProfile(user.id, { silent: true });
+        if (loaded && info) {
+          effectiveInfo = { ...userInfo, ...info };
+          setIsAgreed(true);
+        } else {
+          showToast("이름과 생년월일을 입력하면 무료 명식표를 바로 볼 수 있어요.", "info");
+          return;
+        }
+      } else {
+        showToast("이름과 생년월일을 입력하면 무료 명식표를 바로 볼 수 있어요.", "info");
+        return;
+      }
     }
 
-    const result = calculateSajuFromUserInfo(userInfo);
+    const result = calculateSajuFromUserInfo(effectiveInfo);
     if (!result) {
       showToast("생년월일 형식을 확인해 주세요. (6자리, 예: 900515)", "warning");
       return;
@@ -1277,19 +1353,34 @@ const handlePremiumClick = async () => {
     setShowSajuDashboard(true);
   };
 
-  // 프리미엄 사주 버튼 클릭 핸들러 (명식 입력 여부 확인 후 비회원/회원 분기)
-  const handlePremiumMenuClick = () => {
-    if (isAnyActionLoading) return;
-    if (!userInfo.name || !userInfo.birth) {
-      alert("먼저 상단에 사주 명식을 입력해주세요!");
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
+  const ensureBirthInfoForMenu = async (): Promise<boolean> => {
+    if (userInfo.name?.trim() && userInfo.birth?.trim()) {
+      return true;
     }
+
+    setStep("input");
+    scrollToInputForm();
+
+    if (isRealUser && user) {
+      const { loaded } = await applySavedProfile(user.id, { silent: true });
+      if (loaded) {
+        setIsAgreed(true);
+        return true;
+      }
+    }
+
+    showToast("이름과 생년월일을 입력해 주세요.", "info");
+    return false;
+  };
+
+  // 프리미엄 사주 버튼 클릭 핸들러 (명식 입력 여부 확인 후 비회원/회원 분기)
+  const handlePremiumMenuClick = async () => {
+    if (isAnyActionLoading) return;
+    if (!(await ensureBirthInfoForMenu())) return;
 
     if (!isRealUser) {
       setShowGuestModal(true);
     } else {
-      // 🌟 [핵심 변경] 기존 모달 대신, 2000P짜리 결제 장바구니에 담습니다!
       setPendingPayment({ type: "premium", title: "프리미엄 인생 마스터플랜", payload: null });
     }
   };
@@ -1332,10 +1423,10 @@ const handlePremiumClick = async () => {
   if (splashMode === "character") {
     const heroImageUrl = tenantTheme?.characterHeroImageUrl || initialHeroImageUrl;
     if (heroImageUrl) {
-      return <SplashScreen heroImageUrl={heroImageUrl} onEnter={() => setSplashMode(null)} />;
+      return <SplashScreen heroImageUrl={heroImageUrl} onEnter={dismissSplash} />;
     }
   } else if (splashMode === "dark" || splashMode === "light") {
-    return <MysticalSplash variant={splashMode} onEnter={() => setSplashMode(null)} />;
+    return <MysticalSplash variant={splashMode} onEnter={dismissSplash} />;
   }
 
   return (
@@ -1408,7 +1499,11 @@ const handlePremiumClick = async () => {
         )}
       </header>
 
-      <div className="max-w-md mx-auto pt-24 pb-20 px-5 flex flex-col min-h-screen justify-center relative z-10">
+      <div
+        className={`max-w-md mx-auto pb-20 px-5 flex flex-col min-h-screen relative z-10 ${
+          step === "login" ? "pt-24 justify-center" : "pt-28 md:pt-32 justify-start"
+        }`}
+      >
         
         {/* 📋 [씬 1] 랜딩페이지 대문 */}
         {step === "login" && (
@@ -1785,7 +1880,9 @@ const handlePremiumClick = async () => {
               </div>
               <div>
                 <h3 className="text-xl font-bold text-[var(--text-body)]">{pendingPayment.title}</h3>
-                <p className="text-sm text-[var(--text-muted)] mt-1">결제 동의 시 정밀 분석이 시작됩니다.</p>
+                <p className="text-sm text-[var(--text-muted)] mt-1">
+                  보유 이용권 1장이 차감되며 AI 정밀 분석이 시작됩니다.
+                </p>
               </div>
               
               <div className="bg-[var(--bg-base)] p-4 rounded-2xl border border-[var(--border-default)] my-4">
@@ -1809,7 +1906,7 @@ const handlePremiumClick = async () => {
                 disabled={isLoading("pending")}
                 className="flex-[2] py-3 bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-primary-hover)] text-[var(--text-on-brand)] rounded-xl font-bold text-sm shadow-[0_0_15px_rgba(212,175,55,0.3)] hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {renderLoadingContent("pending", "동의하고 분석 시작")}
+                {renderLoadingContent("pending", "티켓 사용하고 분석 시작")}
               </button>
             </div>
           </div>
